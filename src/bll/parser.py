@@ -18,8 +18,25 @@ class Parser:
     @classmethod
     def parse_tenders(cls, tenders_list_html_raw):
         html = BeautifulSoup(tenders_list_html_raw, 'lxml')
-        search_tags = html.find_all('p', {'class': 'small'})
-        return [tender_url.find('a').attrs['href'] for tender_url in search_tags if tender_url.find('a')]
+        items = []
+        for tender in html.find_all('div', {'class': 'line'})[:-1]:
+            tender_rows = tender.find_all_next('p')
+            items.append((
+                tender_rows[0].text.lstrip('Лот №').strip(),
+                tender_rows[1].text,
+                tender_rows[3].findAll(text=True),
+                tender_rows[4].find('a').attrs['href']
+
+            ))
+        return items
+        """    
+        search_url_tags = [
+            tender_url.find('a').attrs['href'] for tender_url in html.find_all(
+                'p', {'class': 'small'}) if tender_url.find('a')
+        ]
+        search_date_tags = html.find_all('p', {'class': 'smGray'})
+
+        return [(url, date) for url, date in zip(search_url_tags, search_date_tags)]"""
 
     @classmethod
     def parse_tender(cls, tender_html):
@@ -30,6 +47,7 @@ class Parser:
             'number': number,
             'name': name,
         }
+
     @classmethod
     def get_tender_num_name(cls, content):
         head_row = content.find('h1')

@@ -33,8 +33,8 @@ class Collector:
 
     def tender_list_gen(self):
         tender_list_html_res = HttpWorker.get_tenders_list()
-        tender_list_url = Parser.parse_tenders(tender_list_html_res.content)
-        for url in tender_list_url:
+        tender_list = Parser.parse_tenders(tender_list_html_res.content)
+        for num, name, date_lst, url in tender_list:
             self.logger.info('[tender-{}] PARSING STARTED'.format(t_url))
             tender_html_res = HttpWorker.get_tender(url)
             tender = Parser.parse_tender(tender_html_res)
