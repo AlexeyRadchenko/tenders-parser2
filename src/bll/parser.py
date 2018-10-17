@@ -1,7 +1,8 @@
 import logging
 import re
 
-from lxml import html
+#from lxml import html
+from bs4 import BeautifulSoup
 
 from src.bll import tools
 from src.config import config
@@ -16,43 +17,23 @@ class Parser:
 
     @classmethod
     def parse_tenders(cls, tenders_list_html_raw):
-        tenders_list_html = html.fromstring(tenders_list_html_raw)
-        next_page_params = {}
-        tenders_table_html_element = tenders_list_html.xpath("//table[@id='MainContent_dgProducts']")[0]
-        paginator = tenders_table_html_element.xpath("tr").pop().xpath("td")[0]
-        next_page_el = paginator.xpath("a[text()='>']")
-        if next_page_el:
-            next_page_params['__EVENTTARGET'] = cls.REGEX_EVENT_TARGET.search(next_page_el[0].xpath("@href")[0]).group(
-                1)
-        if next_page_params:
-            form = tenders_list_html.xpath("//form")[0]
-            next_page_params.update({
-                '__VIEWSTATE': form.xpath("div/input[@id='__VIEWSTATE']")[0].value,
-                '__EVENTVALIDATION': form.xpath("div/input[@id='__EVENTVALIDATION']")[0].value})
-        return next_page_params or None, cls._parse_tenders_gen(tenders_table_html_element)
+        html = BeautifulSoup(tenders_list_html_raw, 'lxml')
+        search_tags = html.find_all('p', {'class': 'small'})
+        return [tender_url.find('a').attrs['href'] for tender_url in search_tags if tender_url.find('a')]
 
     @classmethod
-    def _parse_tenders_gen(cls, products_table_html_element):
-        product_trs = products_table_html_element.xpath("tr[contains(@class,'ltin')]")
-        for product_tr in product_trs:
-            product_tds = product_tr.xpath("td")
-            href = product_tds[4].xpath("a")[0]
-            tender_name = href.xpath("span")[0].text.strip()
-            tender_url = '%s/%s' % (config.base_url, href.xpath("@href")[0])
-            tender_id = cls.REGEX_TENDER_ID.search(tender_url).group(1)
-            dt_publication = cls._parse_datetime_with_timezone(product_tds[3].text)
-            dt_open_str = product_tds[5].text.replace('\r\n', '').strip()
-            dt_open = cls._parse_datetime_with_timezone(dt_open_str) if dt_open_str else None
-            customer_name = product_tds[6].xpath("a/span")[0].text
-            try:
-                placing_way = config.placing_way[product_tds[7].text.lower()]
-                placing_way_human = product_tds[7].text.lower()
-            except KeyError:
-                placing_way, placing_way_human = None, None
-                cls.logger.warning('unknown tender placing way `{}`'.format(product_tds[7].text.lower()))
-            yield (
-                tender_id, tender_name, tender_url, customer_name, placing_way, placing_way_human, dt_publication,
-                dt_open)
+    def parse_tender(cls, tender_html):
+        html = BeautifulSoup(tender_html, 'lxml')
+        content = html.find('div', {'id': 'content'})
+        number, name = cls.get_tender_num_name(content)
+        return {
+            'number': number,
+            'name': name,
+        }
+    @classmethod
+    def get_tender_num_name(cls, content):
+        head_row = content.find('h1')
+        return head_row.split(': ')
 
     @classmethod
     def parse_tender_gen(cls, tender_html_raw, dt_open):

@@ -29,11 +29,11 @@ class Config:
         if 'proxy' in file_config and file_config['proxy']['enabled']:
             self.set_up_proxy(file_config['proxy'])
         # ссылки
-        self.base_url = 'http://agro.zakupki.tomsk.ru/Competition'
+        self.base_url = 'https://tp.sibserv.com'
         self.tenders_list_url = '%s/%s' % (
-            self.base_url, 'Competition_Request_Cost.aspx?Sale=0&AspxAutoDetectCookieSupport=1')
-        self.tender_url = '%s/%s' % (self.base_url,
-                                     'Competition_Document.aspx')
+            self.base_url, 'tenders.php')
+        #self.tender_url = '%s/%s' % (self.base_url,
+        #                             'Competition_Document.aspx')
         self.lot_url = '%s/%s' % (self.base_url, 'Competition_lot_Pos.aspx')
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]

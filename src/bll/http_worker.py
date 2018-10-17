@@ -9,9 +9,7 @@ from src.config import config
 class HttpWorker:
     timeout = 30
     logger = logging.getLogger('{}.{}'.format(config.app_id, 'http'))
-    cookies = {'ASP.NET_SessionId': 'dkcoef1sbsslbuhcodmbdckf'}
-    documentation_tab = {'__EVENTARGUMENT': 'CLICK:1'}
-    addon_tab = {'__EVENTARGUMENT': 'CLICK:2'}
+    cookies = None
 
     @classmethod
     @retry(logger)
@@ -45,16 +43,8 @@ class HttpWorker:
 
     @classmethod
     @retry(logger)
-    def get_tender(cls, tender_url, documentation=False, additional_info=False):
-        if documentation:
-            event_target_data = cls.documentation_tab
-        elif additional_info:
-            event_target_data = cls.addon_tab
-        else:
-            event_target_data = {}
-
-        return requests.post(tender_url, data=event_target_data, cookies=cls.cookies,
-                             proxies=config.proxy)
+    def get_tender(cls, tender_url):
+        return requests.get(tender_url, cookies=cls.cookies, proxies=config.proxy)
 
     @classmethod
     @retry(logger)
