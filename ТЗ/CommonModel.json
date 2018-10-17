@@ -1,0 +1,55 @@
+﻿{       "id": "int", 
+	    "customers": [
+			{
+				"guid": "objectid",
+				"name": "string",
+				"region": "int"
+			}
+		], 
+	    "type": 30, 
+	    "timestamp": "long",
+		"number": "string",
+		"group": "string",
+		"kind": 0,
+		"orderName": "string",
+		"maxPrice": "decimal"?,
+		"submissionCloseDateTime": "long"?,
+		"submissionStartDateTime": "long"?,
+		"publicationDateTime": "long"?,
+		"guaranteeApp": "decimal",
+		"guaranteeContract": "decimal",
+		"preference": ["int"], 
+		"placingWay": 5000, 
+		"region": "int", 
+		"okpd": ["string"],
+		"okpd2": ["string"], 
+		"okdp": ["string"], 
+		"ktru": ["string"], 
+		"prepayment": "double"?, 
+		"organisationsSearch": "string", 
+		"tenderSearch": "string",
+		"globalSearch": "string", 
+		"version": "int",
+		"multiLot": "bool", 
+		"json": "string", 
+		"attachments": [{
+			"displayName": "string",
+			"realName": "string",
+			"size": "int"?,
+			"publicationDateTime": "int"?,
+			"href": "string"
+		}], 
+		"platform": {
+			"href": "string",
+			"name": "string"
+		},
+		"href": "string", 
+		"modification": {
+			"modDateTime": "long"?,
+			"reason": "string"
+		}, 
+		"futureNumber": "string",  
+		"scoringDateTime": "long"?, 
+		"biddingDateTime": "long"?,		
+		"status": "int"
+    }

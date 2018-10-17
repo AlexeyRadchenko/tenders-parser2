@@ -1,0 +1,27 @@
+version: '3'
+services:
+  mongo:
+    image: mongo
+    ports:
+      - 127.0.0.1:27017:27017
+  rabbitmq:
+    image: rabbitmq:3.7.5-rc.1-management
+    ports:
+      - 127.0.0.1:5672:5672
+      - 127.0.0.1:15672:15672
+    environment:
+      - RABBITMQ_DEFAULT_USER=user
+      - RABBITMQ_DEFAULT_PASS=123456
+  collector:
+    build:
+      context: ..
+      dockerfile: ./dev/Dockerfile
+    entrypoint: [bash, -c, "/utils/wait-for-it.sh mongo:27017 --timeout=30 \
+                            && /utils/wait-for-it.sh rabbitmq:5672 --timeout=30 \
+                            && /venv/bin/python run.py"]
+    depends_on:
+      - mongo
+      - rabbitmq
+    volumes:
+        - ./docker_config.json:/src/config.json
+        - ../logs:/src/logs
