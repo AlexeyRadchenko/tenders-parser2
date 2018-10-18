@@ -34,10 +34,11 @@ class Collector:
     def tender_list_gen(self):
         tender_list_html_res = HttpWorker.get_tenders_list()
         tender_list = Parser.parse_tenders(tender_list_html_res.content)
-        for num, name, date_lst, url in tender_list:
-            self.logger.info('[tender-{}] PARSING STARTED'.format(t_url))
-            tender_html_res = HttpWorker.get_tender(url)
-            tender = Parser.parse_tender(tender_html_res)
+        for item in tender_list:
+            print(item)
+            self.logger.info('[tender-{}] PARSING STARTED'.format(item[4]))
+            tender_html_res = HttpWorker.get_tender(item[4])
+            tender = Parser.parse_tender(tender_html_res.content, item)
             res = self.repository.get_one(t_id)
             if res and res['status'] == 3:
                 self.logger.info('[tender-{}] ALREADY EXIST'.format(t_url))

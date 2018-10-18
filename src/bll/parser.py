@@ -12,8 +12,60 @@ class Parser:
     __slots__ = ['customers_list_html']
 
     logger = logging.getLogger('{}.{}'.format(config.app_id, 'parser'))
-    REGEX_EVENT_TARGET = re.compile(r"\('(.*)',")
-    REGEX_TENDER_ID = re.compile(r"CID=(.*)$")
+    REGEX_DATE = re.compile(r'\d\d.\d\d.\d\d\d\d')
+    REGEX_TIME = re.compile(r'\(\d{1,2}:\d{1,2}')
+    REGEX_FILE_NAME = re.compile(r'[^\/]+$')
+    REGEX_CUSTOMER = re.compile(r'–\s[^,]+')
+    REGEX_PHONE = re.compile(r'тел.:.+, e-mail')
+
+    @classmethod
+    def _clear_date_time(cls, date_str):
+        date = re.search(cls.REGEX_DATE, date_str)
+        time = re.search(cls.REGEX_TIME, date_str)
+        if date and time:
+            return '{} {}'.format(date.group(), time.group().lstrip('('))
+        elif date:
+            return date.group()
+
+    @classmethod
+    def _get_status(cls, date_time_str):
+        tender_end_time = tools.convert_datetime_str_to_timestamp(date_time_str + config.platform_timezone)
+        current_time = tools.get_utc()
+        if current_time < tender_end_time:
+            return 1
+        else:
+            return 3
+
+    @classmethod
+    def _get_attachments(cls, docs_ul, pub_time):
+        attachments = []
+        for li in docs_ul.find_all('li')[1:]:
+            doc = li.find('a')
+            if doc:
+                attachments.append({
+                    'displayName': li.text,
+                    'href': doc.attrs['href'],
+                    'publicationDateTime': tools.convert_datetime_str_to_timestamp(pub_time + config.platform_timezone),
+                    'realName': re.search(cls.REGEX_FILE_NAME, doc.attrs['href']).group(),
+                    'size': None,
+                })
+        return attachments
+
+    @classmethod
+    def _get_customer_contacts(cls, contacts_block):
+        li_items = contacts_block.find_all('li')
+        customer = None
+        contacts = []
+        for li in li_items:
+            phone = re.search(cls.REGEX_PHONE, li.text)
+            if not customer:
+                customer = re.search(cls.REGEX_CUSTOMER, li.text).group().lstrip('– ')
+            contacts.append({
+                'fio': li.find('b').text,
+                'phone': phone.group().lstrip('тел.: ').rstrip(', e-mail') if phone else None,
+                'email': li.find('a').text,
+            })
+        return customer, contacts
 
     @classmethod
     def parse_tenders(cls, tenders_list_html_raw):
@@ -23,35 +75,28 @@ class Parser:
             tender_rows = tender.find_all_next('p')
             items.append((
                 tender_rows[0].text.lstrip('Лот №').strip(),
-                tender_rows[1].text,
-                tender_rows[3].findAll(text=True),
+                tender_rows[1].text.strip(),
+                cls._clear_date_time(tender_rows[3].findAll(text=True)[0]),
+                cls._clear_date_time(tender_rows[3].findAll(text=True)[1]),
                 tender_rows[4].find('a').attrs['href']
-
             ))
         return items
-        """    
-        search_url_tags = [
-            tender_url.find('a').attrs['href'] for tender_url in html.find_all(
-                'p', {'class': 'small'}) if tender_url.find('a')
-        ]
-        search_date_tags = html.find_all('p', {'class': 'smGray'})
-
-        return [(url, date) for url, date in zip(search_url_tags, search_date_tags)]"""
 
     @classmethod
-    def parse_tender(cls, tender_html):
+    def parse_tender(cls, tender_html, t_list_item):
         html = BeautifulSoup(tender_html, 'lxml')
         content = html.find('div', {'id': 'content'})
-        number, name = cls.get_tender_num_name(content)
+        contacts_block, docs_block = content.find_all('ul', {'class': 'lottth'})
+        customer, contacts = cls._get_customer_contacts(contacts_block)
         return {
-            'number': number,
-            'name': name,
+            'number': t_list_item[0],
+            'name': t_list_item[1],
+            'status': cls._get_status(t_list_item[3]),
+            'region': 77,
+            'attachments': cls._get_attachments(docs_block, t_list_item[3]),
+            'customer': customer,
+            'contacts': contacts,
         }
-
-    @classmethod
-    def get_tender_num_name(cls, content):
-        head_row = content.find('h1')
-        return head_row.split(': ')
 
     @classmethod
     def parse_tender_gen(cls, tender_html_raw, dt_open):
