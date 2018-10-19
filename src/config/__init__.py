@@ -13,7 +13,7 @@ class Config:
     proxy = None
 
     def __init__(self):
-        self.app_id = 'agro'
+        self.app_id = 'sibserv'
         self.root_dir = '%s/../..' % os.path.dirname(os.path.abspath(__file__))
         self.configure_logging()
         self.logger = logging.getLogger('{}.{}'.format(self.app_id, 'config'))
@@ -40,6 +40,7 @@ class Config:
         self.pages = None
         self.current_page = {'cpage': 1}
         self.sleep_time = file_config["sleep_time_in_sec"]
+        self.arc_page_count_after_first_time = 5
 
     def set_up_proxy(self, proxy_config):
         proxy_str = "http://{host}".format(host=proxy_config['host'])

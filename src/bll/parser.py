@@ -124,16 +124,16 @@ class Parser:
         customer, contacts = cls._get_customer_contacts(contacts_block)
         return {
             'id': t_list_item[0] + '_1',
-            'number': t_list_item[0],
-            'name': t_list_item[1],
+            'number': t_list_item[1],
+            'name': t_list_item[2],
             'status': cls._get_status(t_list_item[3]),
             'region': 77,
             'attachments': cls._get_attachments(docs_block, t_list_item[3]),
             'customer': customer,
             'contacts': contacts,
-            'pub_date': cls._parse_datetime_with_timezone(t_list_item[2]),
-            'sub_close_date': cls._parse_datetime_with_timezone(t_list_item[3]),
-            'url': t_list_item[4],
+            'pub_date': cls._parse_datetime_with_timezone(t_list_item[3]),
+            'sub_close_date': cls._parse_datetime_with_timezone(t_list_item[4]),
+            'url': t_list_item[5],
         }
 
     @classmethod

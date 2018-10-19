@@ -26,5 +26,10 @@ class MongoRepository:
             bool: Возвращает True если запись была обновлена либо создалась новая запись, False если запись присутствует
                 в БД и в ней ничего не изменилось
         """
-        a = self.collection.update_one({'_id': short_model['_id']}, {'$set': {'status': short_model['status']}}, True)
+        a = self.collection.update_one({'_id': short_model['_id']}, {'$set': {
+            'status': short_model['status'],
+            'url': short_model['url'],
+            'pub_date': short_model['pub_date'],
+            'sub_close_date': short_model['sub_close_date']
+        }}, True)
         return True if a.modified_count or a.upserted_id else False

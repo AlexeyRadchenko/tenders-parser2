@@ -33,13 +33,14 @@ class Collector:
                                               config.rabbitmq['queue'])
         return self._rabbitmq
 
-    def get_mapper_obj(self, tender, status=None):
+    @classmethod
+    def get_mapper_obj(cls, tender, status=None):
         mapper = Mapper(
             id_=tender['id'],
             status=status if status else tender['status'],
             url=tender['url'],
             pub_time=tender['pub_date'],
-            sub_close_time=tender['sub_close_time'],
+            sub_close_time=tender['sub_close_date'],
             http_worker=HttpWorker
         )
         mapper.load_tender_info(tender)
@@ -50,6 +51,7 @@ class Collector:
         tender_result_list_res = HttpWorker.get_tenders_result_list(target_param=config.current_page)
         tender_result_list = Parser.parse_result_tenders(tender_result_list_res.content)
         for t_id, name, status, winner_or_reason in tender_result_list:
+            self.logger.info('[tender-{}] PARSING ARCHIVE STARTED'.format(t_id))
             res = self.repository.get_one(t_id)
             if res and res['status'] == status:
                 self.logger.info('[tender-{}] ALREADY EXIST'.format(res['url']))
@@ -62,13 +64,18 @@ class Collector:
                 )
                 yield self.get_mapper_obj(tender, status)
                 self.logger.info('[tender-{}] PARSING OK'.format(tender['url']))
+            else:
+                arc_short_model = Mapper.get_arc_short_model(t_id, status)
+                self.repository.upsert(arc_short_model)
+                yield None
+                self.logger.info('[tender-{}] PARSING ARCHIVE OK'.format(t_id))
 
     def tender_list_gen(self):
         tender_list_html_res = HttpWorker.get_tenders_list()
         tender_list = Parser.parse_tenders(tender_list_html_res.content)
         for item in tender_list:
-            self.logger.info('[tender-{}] PARSING STARTED'.format(item[4]))
-            tender_html_res = HttpWorker.get_tender(item[4])
+            self.logger.info('[tender-{}] PARSING STARTED'.format(item[5]))
+            tender_html_res = HttpWorker.get_tender(item[5])
             tender = Parser.parse_tender(tender_html_res.content, item)
             res = self.repository.get_one(tender['id'])
             if res and res['status'] == 3:
@@ -86,8 +93,9 @@ class Collector:
 
             for page in range(config.pages):
                 for model in self.tender_result_list_gen():
-                    self.repository.upsert(model.tender_short_model)
-                    self.rabbitmq.publish(model)
+                    if model:
+                        self.repository.upsert(model.tender_short_model)
+                        self.rabbitmq.publish(model)
                 config.current_page['cpage'] += 1
 
             for mapper in self.tender_list_gen():
@@ -97,7 +105,7 @@ class Collector:
 
             if self.first_init:
                 self.first_init = False
-                config.pages = 5
+                config.pages = config.arc_page_count_after_first_time
 
             config.current_page['cpage'] = 1
             sleep(config.sleep_time)

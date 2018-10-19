@@ -61,6 +61,17 @@ class Mapper:
             }
         return self._tender_short_model
 
+    @classmethod
+    def get_arc_short_model(
+            cls, tender_id, tender_status, url=None, tender_date_publication=None, tender_date_open_until=None):
+        return {
+            '_id': tender_id,
+            'status': tender_status,
+            'url': url,
+            'pub_date': tender_date_publication,
+            'sub_close_date': tender_date_open_until
+        }
+
     def tender_model_gen(self):
         yield from self._map_gen(one=False if self.tender_lots else True)
 
