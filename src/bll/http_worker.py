@@ -42,8 +42,15 @@ class HttpWorker:
         return res
 
     @classmethod
-    def get_tenders_result_list
+    def get_tenders_result_list(cls, target_param=None):
+        return requests.get(config.tenders_result_list_url,
+                            params=target_param,
+                            cookies=cls.cookies, proxies=config.proxy)
 
+    @classmethod
+    def get_pages_quantity(cls):
+        return requests.get(config.tenders_result_list_url,
+                            cookies=cls.cookies, proxies=config.proxy)
     @classmethod
     @retry(logger)
     def get_tender(cls, tender_url):

@@ -17,6 +17,7 @@ class Parser:
     REGEX_FILE_NAME = re.compile(r'[^\/]+$')
     REGEX_CUSTOMER = re.compile(r'–\s[^,]+')
     REGEX_PHONE = re.compile(r'тел.:.+, e-mail')
+    REGEX_RESULT_PAGES = re.compile(r'\d+')
 
     @classmethod
     def _clear_date_time(cls, date_str):
@@ -43,7 +44,7 @@ class Parser:
             doc = li.find('a')
             if doc:
                 attachments.append({
-                    'displayName': li.text,
+                    'displayName': li.text.split(':')[0],
                     'href': doc.attrs['href'],
                     'publicationDateTime': tools.convert_datetime_str_to_timestamp(pub_time + config.platform_timezone),
                     'realName': re.search(cls.REGEX_FILE_NAME, doc.attrs['href']).group(),
@@ -68,12 +69,45 @@ class Parser:
         return customer, contacts
 
     @classmethod
+    def get_pages_quantity(cls, html_data):
+        html = BeautifulSoup(html_data, 'lxml')
+        last_page = html.find('div', {'class': 'multip'}).find_all('a')[-1].attrs['href']
+        pages = re.search(cls.REGEX_RESULT_PAGES, last_page).group()
+        return int(pages)
+
+    @classmethod
+    def _get_result_tender_status(cls, result_text):
+        if 'Победитель(и) лота:' in result_text:
+            return 3, result_text.split(': ')[1].strip()
+        elif 'Лот отменен, причина отмены:' in result_text:
+            return 4, result_text.split(': ')[1].strip()
+        else:
+            return 3, None
+
+    @classmethod
+    def parse_result_tenders(cls, tenders_result_html):
+        html = BeautifulSoup(tenders_result_html, 'lxml')
+        items = []
+        tenders_div = [html.find('div', {'class': 'item0'})] + html.find_all('div', {'class': 'item'})
+        for tender in tenders_div:
+            tender_rows = tender.find_all('p')
+            status, winner_reason = cls._get_result_tender_status(tender_rows[3].text)
+            items.append((
+                tender_rows[0].text.lstrip('Лот №').strip() + '_1',
+                tender_rows[1].text.strip(),
+                status,
+                winner_reason
+            ))
+        return items
+
+    @classmethod
     def parse_tenders(cls, tenders_list_html_raw):
         html = BeautifulSoup(tenders_list_html_raw, 'lxml')
         items = []
         for tender in html.find_all('div', {'class': 'line'})[:-1]:
             tender_rows = tender.find_all_next('p')
             items.append((
+                tender_rows[0].text.lstrip('Лот №').strip() + '_1',
                 tender_rows[0].text.lstrip('Лот №').strip(),
                 tender_rows[1].text.strip(),
                 cls._clear_date_time(tender_rows[3].findAll(text=True)[0]),
@@ -89,6 +123,7 @@ class Parser:
         contacts_block, docs_block = content.find_all('ul', {'class': 'lottth'})
         customer, contacts = cls._get_customer_contacts(contacts_block)
         return {
+            'id': t_list_item[0] + '_1',
             'number': t_list_item[0],
             'name': t_list_item[1],
             'status': cls._get_status(t_list_item[3]),
@@ -96,61 +131,10 @@ class Parser:
             'attachments': cls._get_attachments(docs_block, t_list_item[3]),
             'customer': customer,
             'contacts': contacts,
+            'pub_date': cls._parse_datetime_with_timezone(t_list_item[2]),
+            'sub_close_date': cls._parse_datetime_with_timezone(t_list_item[3]),
+            'url': t_list_item[4],
         }
-
-    @classmethod
-    def parse_tender_gen(cls, tender_html_raw, dt_open):
-        lots_gen = None
-        tender_html = html.fromstring(tender_html_raw)
-        lots_element = tender_html.xpath("//tr[@id='MainContent_carTabPage_TrLotPage2']")
-        date_close_raw = tender_html.xpath("//span[@id='MainContent_carTabPage_txtBiddingEndDate']")
-        price_raw = tender_html.xpath("//a[@id='MainContent_carTabPage_txtStartSumm']")
-        price = float(price_raw[0].text.replace(',', '.').replace('\xa0', '')) if price_raw and price_raw[0].text \
-            else None
-        date_close = cls._parse_datetime_with_timezone(date_close_raw[0].text) if date_close_raw and date_close_raw[
-            0].text else dt_open
-        if date_close:
-            status = 1 if date_close > tools.get_utc() else 3
-        else:
-            status = 3
-        if lots_element:
-            lots_trs = lots_element[0].xpath("td/table/tr[not(@class='DataGrid_HeaderStyle')]")
-            lots_gen = cls._parse_lots_gen(lots_trs)
-        yield status, price, date_close, lots_gen
-
-    @classmethod
-    def _parse_lots_gen(cls, lots_trs_elements):
-        for lot_tr in lots_trs_elements:
-            lot_tds = lot_tr.xpath("td")
-            lot_num = int(lot_tds[0].text.strip().replace('\xa0', ''))
-            lot_href_el = lot_tds[1].xpath("a")[0]
-            lot_url = '%s/%s' % (config.base_url, lot_href_el.xpath("@href")[0])
-            lot_name = lot_href_el.text.strip().replace('\xa0', '')
-            lot_quantity = ('%s %s' % (lot_tds[3].text.strip(), lot_tds[2].text.strip())).replace('\xa0', '') if \
-                lot_tds[2].text else lot_tds[3].text.strip().replace('\xa0', '')
-            lot_price = float(lot_tds[4].text.replace(',', '.').replace('\xa0', ''))
-            yield lot_num, lot_name, lot_url, lot_quantity, lot_price
-
-    @classmethod
-    def parse_lot_gen(cls, lot_html_raw):
-        lot_html = html.fromstring(lot_html_raw)
-        positions_trs = lot_html.xpath("//span[@id='MainContent_TableGround']/tr[@style='background:WhiteSmoke']")
-        if positions_trs:
-            pos_gen = cls._parse_positions_gen(positions_trs)
-            yield pos_gen
-
-    @classmethod
-    def _parse_positions_gen(cls, positions_trs_list):
-        for tr in positions_trs_list:
-            spans = tr.xpath("td/span")
-            name = spans[0].text.replace('\xa0', '')
-            q, unit = None, None
-            if len(spans) > 1:
-                unit = spans[1].text.strip().replace('\xa0', '')
-            if len(spans) > 2:
-                q = spans[2].text.strip().replace('\xa0', '')
-            quantity = '%s %s' % (q, unit) if unit and q else q if q else None
-            yield name, quantity
 
     @classmethod
     def _parse_datetime_with_timezone(cls, datetime_str):

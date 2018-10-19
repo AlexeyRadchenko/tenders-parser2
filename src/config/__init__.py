@@ -32,11 +32,14 @@ class Config:
         self.base_url = 'https://tp.sibserv.com'
         self.tenders_list_url = '%s/%s' % (
             self.base_url, 'tenders.php')
-        #self.tender_url = '%s/%s' % (self.base_url,
-        #                             'Competition_Document.aspx')
-        self.lot_url = '%s/%s' % (self.base_url, 'Competition_lot_Pos.aspx')
+        self.tenders_result_list_url = '%s/%s' % (
+            self.base_url, 'tender_result.php'
+        )
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
+        self.pages = None
+        self.current_page = {'cpage': 1}
+        self.sleep_time = file_config["sleep_time_in_sec"]
 
     def set_up_proxy(self, proxy_config):
         proxy_str = "http://{host}".format(host=proxy_config['host'])
