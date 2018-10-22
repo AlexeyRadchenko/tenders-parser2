@@ -51,8 +51,8 @@ class Collector:
         tender_result_list_res = HttpWorker.get_tenders_result_list(target_param=config.current_page)
         tender_result_list = Parser.parse_result_tenders(tender_result_list_res.content)
         for t_id, name, status, winner_or_reason in tender_result_list:
-            self.logger.info('[tender-{}] PARSING ARCHIVE STARTED'.format(t_id))
-            res = self.repository.get_one(t_id)
+            self.logger.info('[tender-{}] PARSING ARCHIVE STARTED'.format(t_id + '_1'))
+            res = self.repository.get_one(t_id + '_1')
             if res and res['status'] == status:
                 self.logger.info('[tender-{}] ALREADY EXIST'.format(res['url']))
                 continue
@@ -65,20 +65,20 @@ class Collector:
                 yield self.get_mapper_obj(tender, status)
                 self.logger.info('[tender-{}] PARSING OK'.format(tender['url']))
             else:
-                arc_short_model = Mapper.get_arc_short_model(t_id, status)
+                arc_short_model = Mapper.get_arc_short_model(t_id + '_1', status)
                 self.repository.upsert(arc_short_model)
                 yield None
-                self.logger.info('[tender-{}] PARSING ARCHIVE OK'.format(t_id))
+                self.logger.info('[tender-{}] PARSING ARCHIVE OK'.format(t_id + '_1'))
 
     def tender_list_gen(self):
         tender_list_html_res = HttpWorker.get_tenders_list()
         tender_list = Parser.parse_tenders(tender_list_html_res.content)
         for item in tender_list:
-            self.logger.info('[tender-{}] PARSING STARTED'.format(item[5]))
-            tender_html_res = HttpWorker.get_tender(item[5])
+            self.logger.info('[tender-{}] PARSING STARTED'.format(item[4]))
+            tender_html_res = HttpWorker.get_tender(item[4])
             tender = Parser.parse_tender(tender_html_res.content, item)
-            res = self.repository.get_one(tender['id'])
-            if res and res['status'] == 3:
+            res = self.repository.get_one(tender['id'] + '_1')
+            if res and res['status'] == tender['status']:
                 self.logger.info('[tender-{}] ALREADY EXIST'.format(tender['url']))
                 continue
             yield self.get_mapper_obj(tender)

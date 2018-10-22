@@ -53,7 +53,7 @@ class Mapper:
     def tender_short_model(self):
         if not self._tender_short_model:
             self._tender_short_model = {
-                '_id': self.tender_id,
+                '_id': '{}_{}'.format(self.tender_id, 1) if '_1' not in self.tender_id else self.tender_id,
                 'status': self.tender_status,
                 'url': self.url,
                 'pub_date': self.tender_date_publication,

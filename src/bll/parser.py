@@ -93,7 +93,7 @@ class Parser:
             tender_rows = tender.find_all('p')
             status, winner_reason = cls._get_result_tender_status(tender_rows[3].text)
             items.append((
-                tender_rows[0].text.lstrip('Лот №').strip() + '_1',
+                tender_rows[0].text.lstrip('Лот №').strip(),
                 tender_rows[1].text.strip(),
                 status,
                 winner_reason
@@ -107,7 +107,6 @@ class Parser:
         for tender in html.find_all('div', {'class': 'line'})[:-1]:
             tender_rows = tender.find_all_next('p')
             items.append((
-                tender_rows[0].text.lstrip('Лот №').strip() + '_1',
                 tender_rows[0].text.lstrip('Лот №').strip(),
                 tender_rows[1].text.strip(),
                 cls._clear_date_time(tender_rows[3].findAll(text=True)[0]),
@@ -123,17 +122,17 @@ class Parser:
         contacts_block, docs_block = content.find_all('ul', {'class': 'lottth'})
         customer, contacts = cls._get_customer_contacts(contacts_block)
         return {
-            'id': t_list_item[0] + '_1',
-            'number': t_list_item[1],
-            'name': t_list_item[2],
+            'id': t_list_item[0],
+            'number': t_list_item[0],
+            'name': t_list_item[1],
             'status': cls._get_status(t_list_item[3]),
             'region': 77,
-            'attachments': cls._get_attachments(docs_block, t_list_item[3]),
+            'attachments': cls._get_attachments(docs_block, t_list_item[2]),
             'customer': customer,
             'contacts': contacts,
-            'pub_date': cls._parse_datetime_with_timezone(t_list_item[3]),
-            'sub_close_date': cls._parse_datetime_with_timezone(t_list_item[4]),
-            'url': t_list_item[5],
+            'pub_date': cls._parse_datetime_with_timezone(t_list_item[2]),
+            'sub_close_date': cls._parse_datetime_with_timezone(t_list_item[3]),
+            'url': t_list_item[4],
         }
 
     @classmethod
