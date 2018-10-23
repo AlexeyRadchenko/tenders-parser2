@@ -31,16 +31,15 @@ class Collector:
                                               config.rabbitmq['queue'])
         return self._rabbitmq
 
-    def tender_list_gen(self):
-        next_page_params = {}
-        while next_page_params is not None:
-            tender_list_html_res = HttpWorker.get_tenders_list(next_page_params)
-            next_page_params, tender_list_gen = Parser.parse_tenders(tender_list_html_res.text)
-            for t_id, t_name, t_url, c_name, t_pway, t_pway_human, t_dt_publication, t_dt_open in tender_list_gen:
-                if not c_name:
-                    continue
-                self.logger.info('[tender-{}] PARSING STARTED'.format(t_url))
-                res = self.repository.get_one(t_id)
+    def tender_list_gen(self, arc=True):
+        for url, tenders_list_html_res in HttpWorker.get_tenders_list_gen(arc=arc):
+            self.logger.info('[tender-{}] PARSING STARTED'.format(url))
+            tenders = Parser.parse_tenders(tenders_list_html_res.content, url, arc=arc)
+            for tender in tenders:
+                print(tender)
+            print('END')
+
+            """    res = self.repository.get_one(t_id)
                 if res and res['status'] == 3:
                     self.logger.info('[tender-{}] ALREADY EXIST'.format(t_url))
                     continue
@@ -63,7 +62,7 @@ class Collector:
                                             t_dt_open, t_dt_close, t_url, tender['lots'])
                     mapper.load_customer_info(c_name)
                     yield mapper
-                self.logger.info('[tender-{}] PARSING OK'.format(t_url))
+                self.logger.info('[tender-{}] PARSING OK'.format(t_url))"""
 
     def collect(self):
         while True:
