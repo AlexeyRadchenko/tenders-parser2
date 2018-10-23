@@ -162,6 +162,7 @@ class Mapper:
             'okpd2': [],
             # Массив ОКДП (если присутствует)
             'okdp': [],
+            'ktru': [],
             # Статус тендера
             'status': self.tender_status,
             # TODO добавить self.customer_guid - сейчас заглушка
@@ -198,6 +199,7 @@ class Mapper:
                 lot_model = copy(model)
                 lot_model.update({
                     'id': '{}_{}'.format(self.tender_id, lot_num + 1),
+                    'orderName': self.tender_name,
                     'globalSearch': ' '.join((self.tender_name, str(self.tender_id), lot['name'],
                                               *[p['name'] for p in lot['positions']], self.tender_placing_way_human)),
                     'json': self.get_shared_model(lot),
@@ -210,6 +212,7 @@ class Mapper:
         else:
             model.update({
                 'id': '{}_{}'.format(self.tender_id, 1),
+                'orderName': self.tender_name,
                 'globalSearch': ' '.join((self.tender_name, str(self.tender_id), self.tender_placing_way_human)),
                 'json': self.get_shared_model(),
                 'maxPrice': self.tender_price,
