@@ -3,13 +3,13 @@ from copy import copy
 
 import src.bll.tools as tools
 from sharedmodel.module import Root, Field, Customer
-from sharedmodel.module.enum import FieldType
+from sharedmodel.module.enum import FieldType, Modification
 from sharedmodel.module.table import Head, Cell
 from src.config import config
 
 
 class Mapper:
-    platform_name = 'Сибирская Аграрная Группа'
+    platform_name = 'АО «Кольская ГМК»'
     _platform_href = None
     _tender_short_model = None
     _customer_guid = None
@@ -28,8 +28,11 @@ class Mapper:
     customer_region = None
     customer_inn = None
     customer_kpp = None
+    tender_attachments = None
+    tender_date_bidding = None
+    tender_contacts = None
 
-    def __init__(self, id_, status, http_worker):
+    def __init__(self, number, status, http_worker):
         """
 
         Args:
@@ -39,15 +42,14 @@ class Mapper:
         """
         self.logger = logging.getLogger(
             '{}.{}'.format(config.app_id, 'mapper'))
-        self.tender_id = id_
+        self.tender_id = number
         self.tender_status = status
         self.http = http_worker
 
     @property
     def tender_short_model(self):
         if not self._tender_short_model:
-            self._tender_short_model = {'_id': str(
-                self.tender_id), 'status': self.tender_status}
+            self._tender_short_model = {'_id': '{}_{}'.format(self.tender_id, 1), 'status': self.tender_status}
         return self._tender_short_model
 
     def tender_model_gen(self):
@@ -125,18 +127,64 @@ class Mapper:
                 name='SubmissionStartDateTime',
                 displayName='Дата начал приема заявок',
                 value=self.tender_date_open,
-                type=FieldType.DateTime
+                type=FieldType.Date
             )).add_field(Field(
                 name='SubmissionCloseDateTime',
                 displayName='Дата окончания приема заявок',
                 value=self.tender_date_open_until,
-                type=FieldType.DateTime
+                type=FieldType.Date
             )).add_field(Field(
                 name='biddingDateTime',
                 displayName='Дата проведения торгов',
-                value=self.tender_date_open,
-                type=FieldType.DateTime
+                value=self.tender_date_bidding,
+                type=FieldType.Date
             ))
+        )
+
+        # блок контактов и данных об организаторе
+        shared_model.add_category(
+            lambda c: c.set_properties(
+                name='Contacts',
+                displayName='Контактная информация',
+                modifications=[]
+            ).add_field(Field(
+                name='Organization',
+                displayName='Организация',
+                value=self.customer_name,
+                type=FieldType.String,
+                modifications=[]
+            )
+            ).add_array(
+                lambda c: c.set_properties(
+                    name='Contacts',
+                    displayName='Контакты',
+                    modifications=[Modification.HiddenLabel]
+                ).add_array_items(
+                    [self.tender_contacts],
+                    lambda item, index: c.add_field(Field(
+                        name='FIO' + str(index),
+                        displayName='ФИО',
+                        value=item[0],
+                        type=FieldType.String,
+                        modifications=[Modification.HiddenLabel]
+                    )
+                    ).add_field(Field(
+                        name='Phone' + str(index),
+                        displayName='Телефон',
+                        value=item[1],
+                        type=FieldType.String,
+                        modifications=[]
+                    )
+                    ).add_field(Field(
+                        name='Email' + str(index),
+                        displayName='Электронная почта',
+                        value=item[2],
+                        type=FieldType.String,
+                        modifications=[Modification.Email]
+                    )
+                    )
+                )
+            )
         )
         return shared_model.to_json()
 
@@ -155,7 +203,7 @@ class Mapper:
             # Если модель - план график, то 1
             'kind': 0,
             # Номер тендера (как в id, только без лота)
-            'number': str(self.tender_id),
+            'number': self.tender_id,
             # Массив ОКПД (если присутствует) ex. ['11.11', '20.2']
             'okpd': [],
             # Массив ОКПД2 (если присутствует)
@@ -179,11 +227,11 @@ class Mapper:
             # Регион тендера (если нет явного, берем по региону заказчика)
             'region': self.customer_region,
             # Дата начала подачи заявок UNIX EPOCH (UTC)
-            'submissionCloseDateTime': self.tender_date_open,
+            'submissionCloseDateTime': self.tender_date_open_until,
             # Дата окончания подачи заявок UNIX EPOCH (UTC)
-            'submissionStartDateTime': None,
+            'submissionStartDateTime': self.tender_date_open,
             # Дата проведения аукциона в электронной форме (если есть) UNIX EPOCH (UTC)
-            'biddingDateTime': self.tender_date_open,
+            'biddingDateTime': self.tender_date_bidding,
             # Дата маппинга модели в UNIX EPOCH (UTC) (milliseconds)
             'timestamp': tools.get_utc(),
             # Тип парсера (можно не менять)
@@ -192,7 +240,7 @@ class Mapper:
             # Если на площадке нет версии, то ставить 1
             'version': 1,
             # Прикрепленные документы (массив)
-            'attachments': []
+            'attachments': self.tender_attachments
         }
         if not one:
             for lot_num, lot in enumerate(self.tender_lots):
@@ -230,7 +278,7 @@ class Mapper:
     @property
     def platform_href(self):
         if not self._platform_href:
-            self._platform_href = 'http://agro.zakupki.tomsk.ru/Competition/Competition_Request_Cost.aspx'
+            self._platform_href = 'http://www.kolagmk.ru'
         return self._platform_href
 
     def load_customer_info(self, customer_name):
@@ -257,18 +305,20 @@ class Mapper:
         self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
-    def load_tender_info(self, t_id, t_status, t_name, t_price, t_placing_way, t_placing_way_human, t_date_pub,
-                         t_date_open, t_date_close,
-                         t_url, lots):
-        self.tender_id = t_id
-        self.tender_price = t_price
+    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
+                         t_attachments, t_date_bidding, t_contacts):
+        self.tender_id = t_number
+        self.tender_price = None
         self.tender_status = t_status
         self.tender_name = t_name
         self.tender_date_publication = t_date_pub
-        self.tender_date_open = t_date_open
+        self.tender_date_open = t_date_pub
         self.tender_date_open_until = t_date_close
         self.tender_url = t_url
-        self.tender_lots = lots
-        self.tender_placing_way = t_placing_way
-        self.tender_placing_way_human = t_placing_way_human
+        self.tender_lots = None
+        self.tender_placing_way = config.placing_way['открытый конкурс']
+        self.tender_placing_way_human = 'Открытый конкурс'
+        self.tender_attachments = t_attachments
+        self.tender_date_bidding = t_date_bidding
+        self.tender_contacts = t_contacts
         return self

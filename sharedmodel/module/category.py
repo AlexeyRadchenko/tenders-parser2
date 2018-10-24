@@ -39,6 +39,14 @@ class Category(object):
         self.entities.append(arg)
         return self
 
+    def add_array_items(self, arr, fun):
+        if not arr:
+            return self
+
+        for i, item in enumerate(arr):
+            fun(item, i)
+        return self
+
     def compare(self, other, other_date, self_date):
         for entity in self.entities:
             other_entity = next(

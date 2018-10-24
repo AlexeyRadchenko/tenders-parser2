@@ -6,7 +6,7 @@ from src.bll.parser import Parser
 from src.config import config
 from src.repository.mongodb import MongoRepository
 from src.repository.rabbitmq import RabbitMqProvider
-
+from time import sleep
 
 class Collector:
     __slots__ = ['logger', '_repository', '_rabbitmq']
@@ -71,3 +71,4 @@ class Collector:
                 self.repository.upsert(mapper.tender_short_model)
                 for model in mapper.tender_model_gen():
                     self.rabbitmq.publish(model)
+            sleep(config.sleep_time)

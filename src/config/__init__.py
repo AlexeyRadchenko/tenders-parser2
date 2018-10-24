@@ -37,6 +37,7 @@ class Config:
         self.lot_url = '%s/%s' % (self.base_url, 'Competition_lot_Pos.aspx')
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
+        self.sleep_time = 30
 
     def set_up_proxy(self, proxy_config):
         proxy_str = "http://{host}".format(host=proxy_config['host'])
