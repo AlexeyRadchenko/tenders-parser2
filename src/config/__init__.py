@@ -36,6 +36,7 @@ class Config:
         self.tenders_list_url = ['{}/{}'.format(self.base_url, item) for item in self.urls_list]
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
+        self.sleep_time = 30
 
     def set_up_proxy(self, proxy_config):
         proxy_str = "http://{host}".format(host=proxy_config['host'])

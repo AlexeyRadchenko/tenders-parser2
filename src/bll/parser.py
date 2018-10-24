@@ -21,11 +21,13 @@ class Parser:
     def parse_tenders(cls, tenders_list_html_raw, url, arc):
         html = BeautifulSoup(tenders_list_html_raw, 'lxml')
         if not arc:
-            tenders_rows = html.find('table', {'class': 'cols-9'}).find('tbody').find_all('tr', ['odd', 'even'])
+            tenders_rows = html.find('table', {'class': 'cols-9'})
         else:
-            tenders_rows = html.find('table', {'class': 'cols-10'}).find('tbody').find_all('tr', ['odd', 'even'])
+            tenders_rows = html.find('table', {'class': 'cols-10'})
         tenders = []
-        for tender in tenders_rows:
+        if not tenders_rows:
+            return None
+        for tender in tenders_rows.find('tbody').find_all('tr', ['odd', 'even']):
             if not tender.find('table', {'class': 'cols-4'}):
                 continue
             org, name = cls._get_org_name(
@@ -36,14 +38,15 @@ class Parser:
                     tender.find('td', {'class': 'views-field-field-lotstatus'}).find('img').attrs['src']),
                 'name': name,
                 'sub_close_date': cls._parse_datetime_with_timezone(
-                    tender.find('td', {'class': 'views-field-field-lotstartdate'}).find('span').text),
+                    tender.find('td', {'class': 'views-field-field-lotstartdate'}).find('span').text, tz=False),
                 'bidding_date': cls._parse_datetime_with_timezone(
-                    tender.find('td', {'class': 'views-field-field-lottorgdate'}).find('span').text),
+                    tender.find('td', {'class': 'views-field-field-lottorgdate'}).find('span').text, tz=False),
                 'org': org,
                 'contacts': cls._get_contacts(tender.find('td', {'class': 'views-field-field-jtype-date'}).text),
                 'attachments': cls._get_attachments(
                     tender.find('td', {'class': 'views-field-field-jtype-files'}).find_all('tr')),
                 'href': url,
+                'pub_date': None,
             })
         return tenders
 
@@ -72,7 +75,6 @@ class Parser:
             doc_link = row.find('a')
             if not doc_link:
                 continue
-            print(doc_link)
             attachments.append({
                 'displayName': doc_link.text,
                 'href': doc_link.attrs['href'],
@@ -117,5 +119,8 @@ class Parser:
         return fio, phone, email if fio or phone or email else None
 
     @classmethod
-    def _parse_datetime_with_timezone(cls, datetime_str):
-        return tools.convert_datetime_str_to_timestamp(datetime_str + config.platform_timezone)
+    def _parse_datetime_with_timezone(cls, datetime_str, tz):
+        if tz:
+            return tools.convert_datetime_str_to_timestamp(datetime_str + config.platform_timezone, tz=tz)
+        else:
+            return tools.convert_datetime_str_to_timestamp(datetime_str, tz=tz)
