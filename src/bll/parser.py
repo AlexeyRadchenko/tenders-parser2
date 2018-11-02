@@ -47,6 +47,8 @@ class Parser:
                     tender.find('td', {'class': 'views-field-field-jtype-files'}).find_all('tr')),
                 'href': url,
                 'pub_date': None,
+                'contract_deadline': cls._get_contract_deadline(
+                    tender.find('td', {'class': 'views-field-field-jtype-date'}).text),
             })
         return tenders
 
@@ -117,6 +119,10 @@ class Parser:
             email = email_regex.group()
 
         return fio, phone, email if fio or phone or email else None
+
+    @classmethod
+    def _get_contract_deadline(cls, data_str):
+        return data_str.split('(')[0].lstrip('\n').strip()
 
     @classmethod
     def _parse_datetime_with_timezone(cls, datetime_str, tz):

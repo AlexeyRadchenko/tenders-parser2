@@ -47,7 +47,7 @@ class Collector:
 
                 mapper.load_tender_info(
                     tender['number'], tender['status'], tender['name'], tender['pub_date'], tender['sub_close_date'],
-                    url, tender['attachments'], tender['bidding_date'], tender['contacts'])
+                    url, tender['attachments'], tender['bidding_date'], tender['contacts'], tender['contract_deadline'])
                 mapper.load_customer_info('АО Кольская ГМК')
                 yield mapper
                 self.logger.info('[tender-{}, url:{}] PARSING OK'.format(tender['number'], url))

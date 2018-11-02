@@ -31,6 +31,7 @@ class Mapper:
     tender_attachments = None
     tender_date_bidding = None
     tender_contacts = None
+    tender_contract_deadline = None
 
     def __init__(self, number, status, http_worker):
         """
@@ -186,6 +187,17 @@ class Mapper:
                 )
             )
         )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='ContractDeadline',
+                displayName='Сроки выполнения работ',
+                value=self.tender_contract_deadline,
+                type=FieldType.String,
+                modifications=[]
+            )
+        )
+
         return shared_model.to_json()
 
     def _map_gen(self, one=False):
@@ -306,7 +318,7 @@ class Mapper:
         return self
 
     def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_attachments, t_date_bidding, t_contacts):
+                         t_attachments, t_date_bidding, t_contacts, t_contract_deadline):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -321,4 +333,5 @@ class Mapper:
         self.tender_attachments = t_attachments
         self.tender_date_bidding = t_date_bidding
         self.tender_contacts = t_contacts
+        self.tender_contract_deadline = t_contract_deadline
         return self
