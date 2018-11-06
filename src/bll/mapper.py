@@ -160,7 +160,7 @@ class Mapper:
                     displayName='Контакты',
                     modifications=[Modification.HiddenLabel]
                 ).add_array_items(
-                    [self.tender_contacts],
+                    self.tender_contacts, # list
                     lambda item, index: c.add_field(Field(
                         name='FIO' + str(index),
                         displayName='ФИО',
@@ -186,6 +186,17 @@ class Mapper:
                 )
             )
         )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='ContractDescription',
+                displayName='Описание',
+                value=self.tender_description,
+                type=FieldType.String,
+                modifications=[]
+            )
+        )
+
         return shared_model.to_json()
 
     def _map_gen(self, one=False):

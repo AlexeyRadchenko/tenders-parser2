@@ -15,6 +15,10 @@ class Parser:
     REGEX_TENDER_ID = re.compile(r"CID=(.*)$")
 
     @classmethod
+    def _get_tender_id(cls, tender_num):
+        return 'НА{}_1'.format(int(sha256(tender_num.encode('utf-8')).hexdigest(), 16) % 10 ** 8)
+
+    @classmethod
     def parse_tenders(cls, tenders_list_html_raw):
         tenders_list_html = html.fromstring(tenders_list_html_raw)
         next_page_params = {}
@@ -109,5 +113,8 @@ class Parser:
             yield name, quantity
 
     @classmethod
-    def _parse_datetime_with_timezone(cls, datetime_str):
-        return tools.convert_datetime_str_to_timestamp(datetime_str + config.platform_timezone)
+    def _parse_datetime_with_timezone(cls, datetime_str, tz):
+        if tz:
+            return tools.convert_datetime_str_to_timestamp(datetime_str, config.platform_timezone)
+        else:
+            return tools.convert_datetime_str_to_timestamp(datetime_str, None)
