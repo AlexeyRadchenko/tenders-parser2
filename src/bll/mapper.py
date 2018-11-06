@@ -9,7 +9,7 @@ from src.config import config
 
 
 class Mapper:
-    platform_name = 'АО «Кольская ГМК»'
+    platform_name = 'Нефтеавтоматика'
     _platform_href = None
     _tender_short_model = None
     _customer_guid = None
@@ -25,14 +25,16 @@ class Mapper:
     tender_placing_way = None
     tender_placing_way_human = None
     customer_name = None
-    customer_region = None
+    customer_region = 2
     customer_inn = None
     customer_kpp = None
     tender_attachments = None
     tender_date_bidding = None
     tender_contacts = None
+    tender_add_docs = None
+    tender_description = None
 
-    def __init__(self, number, status, http_worker):
+    def __init__(self, id, number, status, http_worker):
         """
 
         Args:
@@ -42,14 +44,15 @@ class Mapper:
         """
         self.logger = logging.getLogger(
             '{}.{}'.format(config.app_id, 'mapper'))
-        self.tender_id = number
+        self.tender_id = id
+        self.tender_number = number
         self.tender_status = status
         self.http = http_worker
 
     @property
     def tender_short_model(self):
         if not self._tender_short_model:
-            self._tender_short_model = {'_id': '{}_{}'.format(self.tender_id, 1), 'status': self.tender_status}
+            self._tender_short_model = {'_id': self.tender_id, 'status': self.tender_status}
         return self._tender_short_model
 
     def tender_model_gen(self):
@@ -132,12 +135,7 @@ class Mapper:
                 name='SubmissionCloseDateTime',
                 displayName='Дата окончания приема заявок',
                 value=self.tender_date_open_until,
-                type=FieldType.Date
-            )).add_field(Field(
-                name='biddingDateTime',
-                displayName='Дата проведения торгов',
-                value=self.tender_date_bidding,
-                type=FieldType.Date
+                type=FieldType.DateTime
             ))
         )
 
@@ -160,25 +158,25 @@ class Mapper:
                     displayName='Контакты',
                     modifications=[Modification.HiddenLabel]
                 ).add_array_items(
-                    [self.tender_contacts],
+                    self.tender_contacts,
                     lambda item, index: c.add_field(Field(
                         name='FIO' + str(index),
                         displayName='ФИО',
-                        value=item[0],
+                        value=item['fio'],
                         type=FieldType.String,
                         modifications=[Modification.HiddenLabel]
                     )
                     ).add_field(Field(
                         name='Phone' + str(index),
                         displayName='Телефон',
-                        value=item[1],
+                        value=item['phone'],
                         type=FieldType.String,
                         modifications=[]
                     )
                     ).add_field(Field(
                         name='Email' + str(index),
                         displayName='Электронная почта',
-                        value=item[2],
+                        value=item['email'],
                         type=FieldType.String,
                         modifications=[Modification.Email]
                     )
@@ -186,6 +184,57 @@ class Mapper:
                 )
             )
         )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='ContractDescription',
+                displayName='Описание',
+                value=self.tender_description,
+                type=FieldType.String,
+                modifications=[]
+            )
+        )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='DeliveryDeadline',
+                displayName='Требуемые сроки поставки',
+                value=self.tender_add_docs['deliver_deadline'],
+                type=FieldType.String,
+                modifications=[]
+            )
+        )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='PaymentTerms',
+                displayName='Общие условия оплаты',
+                value=self.tender_add_docs['payment_terms'],
+                type=FieldType.String,
+                modifications=[]
+            )
+        )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='SpecialTerms',
+                displayName='Особые требования',
+                value=self.tender_add_docs['special_terms'],
+                type=FieldType.String,
+                modifications=[]
+            )
+        )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='Certs',
+                displayName='Перечень разрешительной и эксплуатационной документации',
+                value=self.tender_add_docs['certs'],
+                type=FieldType.String,
+                modifications=[]
+            )
+        )
+
         return shared_model.to_json()
 
     def _map_gen(self, one=False):
@@ -203,7 +252,7 @@ class Mapper:
             # Если модель - план график, то 1
             'kind': 0,
             # Номер тендера (как в id, только без лота)
-            'number': self.tender_id,
+            'number': self.tender_number,
             # Массив ОКПД (если присутствует) ex. ['11.11', '20.2']
             'okpd': [],
             # Массив ОКПД2 (если присутствует)
@@ -259,7 +308,7 @@ class Mapper:
                 yield lot_model
         else:
             model.update({
-                'id': '{}_{}'.format(self.tender_id, 1),
+                'id': self.tender_id,
                 'orderName': self.tender_name,
                 'globalSearch': ' '.join((self.tender_name, str(self.tender_id), self.tender_placing_way_human)),
                 'json': self.get_shared_model(),
@@ -278,7 +327,7 @@ class Mapper:
     @property
     def platform_href(self):
         if not self._platform_href:
-            self._platform_href = 'http://www.kolagmk.ru'
+            self._platform_href = 'https://zakupki.nefteavtomatika.ru'
         return self._platform_href
 
     def load_customer_info(self, customer_name):
@@ -305,9 +354,9 @@ class Mapper:
         self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
-    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_attachments, t_date_bidding, t_contacts):
-        self.tender_id = t_number
+    def load_tender_info(self, t_id, t_status, t_name, t_date_pub, t_date_close, t_url,
+                         t_attachments, t_contacts, t_description):
+        self.tender_id = t_id
         self.tender_price = None
         self.tender_status = t_status
         self.tender_name = t_name
@@ -318,7 +367,10 @@ class Mapper:
         self.tender_lots = None
         self.tender_placing_way = config.placing_way['открытый конкурс']
         self.tender_placing_way_human = 'Открытый конкурс'
-        self.tender_attachments = t_attachments
-        self.tender_date_bidding = t_date_bidding
+        self.tender_attachments = t_attachments['attachments']
+        self.tender_date_bidding = None
         self.tender_contacts = t_contacts
+        self.tender_add_docs = t_attachments
+        self.tender_description = t_description
+
         return self
