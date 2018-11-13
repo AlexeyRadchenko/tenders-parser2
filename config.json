@@ -2,7 +2,7 @@
   "mongodb": {
     "host": "localhost",
     "port": 27017,
-    "database": "mmk",
+    "database": "kuzbass_coal_cut",
     "collection": "notifications"
   },
   "rabbitmq": {
