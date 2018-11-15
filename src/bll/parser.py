@@ -11,12 +11,20 @@ class Parser:
     __slots__ = ['customers_list_html']
 
     logger = logging.getLogger('{}.{}'.format(config.app_id, 'parser'))
-    REGEX_EVENT_TARGET = re.compile(r"\('(.*)',")
-    REGEX_TENDER_ID = re.compile(r"CID=(.*)$")
+    REGEX_FIO_PATTERNS = re.compile(
+        r'[А-Я][а-яё]+\s[А-Я][а-яё]+\s[А-Я][а-яё]+|[А-Я][а-яё]+\s[А-Я].[А-Я].|[А-ЯЁ].[А-ЯЁ].\s?[А-ЯЁ][а-яё]+')
+    REGEX_EMAIL = re.compile(r'[^\s]+@[^.]+.\w+')
+    REGEX_PHONE = re.compile(r'((8|\+7)[\- ]?)?(\(?\d{3,5}\)?[\- ]?)?[\d\- ]{7,16}')
+    REGEX_FILE_NAME = re.compile(r"[^/]+$")
 
     @classmethod
     def _get_tender_id(cls, tender_num):
         return 'НА{}_1'.format(int(sha256(tender_num.encode('utf-8')).hexdigest(), 16) % 10 ** 8)
+
+    @classmethod
+    def _next_page_exist(cls, html):
+        if html.find('div', {'class': 'pagination'}).find_all('a')[-1].attrs['class'][0] == 'pagination__arr':
+            return True
 
     @classmethod
     def parse_tenders(cls, tenders_list_html_raw):
@@ -92,6 +100,44 @@ class Parser:
             yield lot_num, lot_name, lot_url, lot_quantity, lot_price
 
     @classmethod
+    def _get_contacts(cls, text_items):
+        full_text = ' '.join(text_items)
+        full_text = ' '.join(full_text.split())
+        phone_numbers_text_list = [number
+                                   for number in full_text.split(',') if
+                                   ('8' in number or '7' in number) and 'Факс' not in number]
+        fio_list = re.findall(cls.REGEX_FIO_PATTERNS, full_text)
+        email_list = re.findall(cls.REGEX_EMAIL, full_text)
+        phone_list = [cls._get_phone(item) for item in phone_numbers_text_list]
+        contacts = []
+        for fio, email, phone in zip(fio_list, email_list, phone_list):
+            contacts.append({
+                'fio': fio,
+                'phone': phone,
+                'email': email
+            })
+        return contacts
+
+    @classmethod
+    def _get_phone(cls, phone_str):
+        phone = re.search(cls.REGEX_PHONE, phone_str)
+        if phone:
+            return phone.group()
+
+    @classmethod
+    def _get_attachments(cls, url_list, pub_date):
+        attachments = []
+        for url in url_list:
+            attachments.append({
+                'displayName': url.text.replace('\xa0', ''),
+                'href': url.attrs['href'],
+                'publicationDateTime': pub_date,
+                'realName': cls._get_file_name(url.attrs['href']),
+                'size': None,
+            })
+        return attachments
+
+    @classmethod
     def parse_lot_gen(cls, lot_html_raw):
         lot_html = html.fromstring(lot_html_raw)
         positions_trs = lot_html.xpath("//span[@id='MainContent_TableGround']/tr[@style='background:WhiteSmoke']")
@@ -118,3 +164,7 @@ class Parser:
             return tools.convert_datetime_str_to_timestamp(datetime_str, config.platform_timezone)
         else:
             return tools.convert_datetime_str_to_timestamp(datetime_str, None)
+
+    @classmethod
+    def _clear_spec_letters(cls, string):
+        return string.replace('\r', '').replace('\n', '').replace('\t', '').replace('\xa0', '').strip()
