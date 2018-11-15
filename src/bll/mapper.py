@@ -9,7 +9,7 @@ from src.config import config
 
 
 class Mapper:
-    platform_name = 'АО «Кольская ГМК»'
+    platform_name = '«ГК Сегежа»'
     _platform_href = None
     _tender_short_model = None
     _customer_guid = None
@@ -31,6 +31,7 @@ class Mapper:
     tender_attachments = None
     tender_date_bidding = None
     tender_contacts = None
+    tender_description = None
 
     def __init__(self, number, status, http_worker):
         """
@@ -132,12 +133,7 @@ class Mapper:
                 name='SubmissionCloseDateTime',
                 displayName='Дата окончания приема заявок',
                 value=self.tender_date_open_until,
-                type=FieldType.Date
-            )).add_field(Field(
-                name='biddingDateTime',
-                displayName='Дата проведения торгов',
-                value=self.tender_date_bidding,
-                type=FieldType.Date
+                type=FieldType.DateTime
             ))
         )
 
@@ -164,21 +160,21 @@ class Mapper:
                     lambda item, index: c.add_field(Field(
                         name='FIO' + str(index),
                         displayName='ФИО',
-                        value=item[0],
+                        value=item.get('fio'),
                         type=FieldType.String,
                         modifications=[Modification.HiddenLabel]
                     )
                     ).add_field(Field(
                         name='Phone' + str(index),
                         displayName='Телефон',
-                        value=item[1],
+                        value=item.get('phone'),
                         type=FieldType.String,
                         modifications=[]
                     )
                     ).add_field(Field(
                         name='Email' + str(index),
                         displayName='Электронная почта',
-                        value=item[2],
+                        value=item.get('name'),
                         type=FieldType.String,
                         modifications=[Modification.Email]
                     )
@@ -289,7 +285,7 @@ class Mapper:
     @property
     def platform_href(self):
         if not self._platform_href:
-            self._platform_href = 'http://www.kolagmk.ru'
+            self._platform_href = 'https://segezha-group.com/purchasing/'
         return self._platform_href
 
     def load_customer_info(self, customer_name):
@@ -317,7 +313,7 @@ class Mapper:
         return self
 
     def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_attachments, t_date_bidding, t_contacts):
+                         t_attachments, t_placing_way, t_contacts, t_desc):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -327,9 +323,10 @@ class Mapper:
         self.tender_date_open_until = t_date_close
         self.tender_url = t_url
         self.tender_lots = None
-        self.tender_placing_way = config.placing_way['открытый конкурс']
-        self.tender_placing_way_human = 'Открытый конкурс'
+        self.tender_placing_way = config.placing_way[t_placing_way] if t_placing_way else ''
+        self.tender_placing_way_human = t_placing_way if t_placing_way else ''
         self.tender_attachments = t_attachments
-        self.tender_date_bidding = t_date_bidding
+        self.tender_date_bidding = None
         self.tender_contacts = t_contacts
+        self.tender_description = t_desc
         return self
