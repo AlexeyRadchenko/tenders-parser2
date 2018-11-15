@@ -139,6 +139,7 @@ class Root(object):
 
     def to_dict(self):
         errors = self.validate()
+        print(errors)
         if errors:
             raise Exception(message=validation.inline(errors))
 

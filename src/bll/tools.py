@@ -70,6 +70,7 @@ def convert_datetime_str_to_timestamp(datetime_str, tz):
     if tz:
         return int(datetime.datetime.strptime(datetime_str, date_format).astimezone(pytz.utc).timestamp()) * 1000
     else:
+        #print("_"+datetime_str+"_")
         return int(
             (datetime.datetime.strptime(datetime_str, date_format) - datetime.datetime(1970, 1, 1)).total_seconds()
             * 1000

@@ -12,9 +12,9 @@ class Parser:
     __slots__ = ['customers_list_html']
 
     logger = logging.getLogger('{}.{}'.format(config.app_id, 'parser'))
-    REGEX_FIO_PATTERNS = re.compile(r'[А-Я][а-яё]+\s[А-Я][а-яё]+\s[А-Я][а-яё]+|[А-Я][а-яё]+\s[А-Я].[А-Я].')
+    REGEX_FIO_PATTERNS = re.compile(r'[А-Я][а-яё]+\s[А-Я][а-яё]+\s[А-Я][а-яё]+|[А-Я][а-яё]+\s[А-Я].[А-Я].|[А-ЯЁ].[А-ЯЁ].\s?[А-ЯЁ][а-яё]+')
     REGEX_EMAIL = re.compile(r'[^\s]+@[^.]+.\w+')
-    REGEX_PHONE = re.compile(r'((8|\+7)[\- ]?)?(\(?\d{3,5}\)?[\- ]?)?[\d\- ]{7,10}')
+    REGEX_PHONE = re.compile(r'((8|\+7)[\- ]?)?(\(?\d{3,5}\)?[\- ]?)?[\d\- ]{7,16}')
     REGEX_FILE_NAME = re.compile(r"[^/]+$")
 
     @classmethod
@@ -50,22 +50,38 @@ class Parser:
     def parse_tender(cls, tender_html_raw, tender_item):
         html = BeautifulSoup(tender_html_raw, 'lxml')
         tender_data_table = html.find('article', {'class': 'content'}).find('table')
-        header_rows = tender_data_table.find('thead').find_all('tr')
-        table_rows = tender_data_table.find('tbody').find_all('tr')
-        sub_end_date = cls._clear_spec_letters(table_rows[0].find_all('td')[1].find('p').text).rstrip('г.')
+        header = tender_data_table.find('thead')
+        if header:
+            header_rows = header.find_all('tr')
+            table_rows = tender_data_table.find('tbody').find_all('tr')
+        else:
+            tbody = tender_data_table.find('tbody')
+            header_rows = tbody.find_all('tr')[:1]
+            table_rows = tbody.find_all('tr')[1:]
+        sub_end_date = cls._clear_spec_letters(table_rows[0].find_all('td')[1].text).rstrip('г.').strip()
+        if sub_end_date[-3] == '.':
+            sub_end_date = sub_end_date.replace('.18', '.2018')
         pub_date = cls._parse_datetime_with_timezone(tender_item['pub_date'], None)
         info = tender_data_table.find_next_siblings()
+        contacts = table_rows[0].find_all('td')[-2].findAll(text=True)
+        print(contacts)
+        contacts = [item for item in contacts if item != '\n']
+        if not contacts:
+            contacts = [item.text for item in table_rows[0].find_all('td')[4].find_all('p')]
+        if len(contacts) == 1 and 'Кол ед. оборудования' not in contacts[0]:
+            contacts = table_rows[0].find_all('td')[4].findAll(text=True)
         return {
             'id': tender_item['id'],
-            'name': tender_item['name'],
+            'name': ' '.join(tender_item['name'].split()),
             'status': cls._get_tender_status(sub_end_date),
             'region': 42,
-            'customer': cls._get_customer(header_rows[0].find_all('td')[4].findAll(text=True)),
+            'customer': cls._get_customer(header_rows[0].find_all('td')[-2].findAll(text=True)),
             'pub_date': pub_date,
             'sub_close_date': cls._parse_datetime_with_timezone(sub_end_date, None),
-            'contacts': cls._get_contacts(table_rows[0].find_all('td')[4].findAll(text=True)),
-            'attachments': cls._get_attachments(table_rows[0].find_all('td')[5].find_all('a'), pub_date),
+            'contacts': cls._get_contacts(contacts),
+            'attachments': cls._get_attachments(table_rows[0].find_all('td')[-1].find_all('a'), pub_date),
             'dop_info': cls._get_info(info),
+            'url': tender_item['url']
         }
 
     @classmethod
@@ -79,14 +95,18 @@ class Parser:
 
     @classmethod
     def _get_customer(cls, column_text_list):
+
         for text in column_text_list:
+            if 'Кузбассразрезуголь' in text:
+                return 'АО «УК «Кузбассразрезуголь»'
             if 'АО' in text or 'ООО' in text or 'ЗАО' in text or 'ПАО' in text:
-                return cls._clear_spec_letters(text) # 'АО «УК «Кузбассразрезуголь»'
-        return None
+                return cls._clear_spec_letters(text)
+        return 'ООО «СП «Серебряный ключ»'
 
     @classmethod
     def _get_contacts(cls, text_items):
-        full_text = ''.join(text_items)
+        full_text = ' '.join(text_items)
+        full_text = ' '.join(full_text.split())
         phone_numbers_text_list = [number
                                    for number in full_text.split(',') if ('8' in number or '7' in number) and 'Факс' not in number]
         fio_list = re.findall(cls.REGEX_FIO_PATTERNS, full_text)
@@ -112,7 +132,7 @@ class Parser:
         attachments = []
         for url in url_list:
             attachments.append({
-                'displayName': url.text,
+                'displayName': url.text.replace('\xa0', ''),
                 'href': url.attrs['href'],
                 'publicationDateTime': pub_date,
                 'realName': cls._get_file_name(url.attrs['href']),
@@ -131,7 +151,7 @@ class Parser:
     @classmethod
     def _get_info(cls, info):
         if info:
-            return ''.join([item.text for item in info])
+            return ''.join([item.text for item in info]).replace('\xa0', '')
 
     @classmethod
     def _parse_datetime_with_timezone(cls, datetime_str, tz):
@@ -142,4 +162,4 @@ class Parser:
 
     @classmethod
     def _clear_spec_letters(cls, string):
-        return string.replace('\r', '').replace('\n', '').replace('\t', '').strip()
+        return string.replace('\r', '').replace('\n', '').replace('\t', '').replace('\xa0', '').strip()

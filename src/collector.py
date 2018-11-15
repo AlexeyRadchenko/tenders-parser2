@@ -34,8 +34,9 @@ class Collector:
     def tender_list_gen(self):
         page = 1
         next_page = True
-        while next_page is not None:
+        while next_page is not None and page <= 20:
             tender_list_html_res = HttpWorker.get_tenders_list(page=page)
+            print(config.tenders_list_url.format(page))
             next_page, tender_list = Parser.parse_tenders(tender_list_html_res.content)
             for tender_item in tender_list:
                 #res = self.repository.get_one(tender_item['id'])
@@ -46,18 +47,24 @@ class Collector:
                 tender_html_raw = HttpWorker.get_tender(tender_item['url'])
                 tender = Parser.parse_tender(tender_html_raw.content, tender_item)
                 print(tender)
-                mapper = Mapper(id_=tender['id'], status=tender['status'], http_worker=HttpWorker)
+                mapper = Mapper(t_id=tender['id'], status=tender['status'], http_worker=HttpWorker)
 
-                mapper.load_tender_info(t_id, t_status, t_name, t_price, t_pway, t_pway_human, t_dt_publication,
-                                        t_dt_open, t_dt_close, t_url, tender['lots'])
-                mapper.load_customer_info(c_name)
+                mapper.load_tender_info(tender['status'], tender['name'], tender['pub_date'],
+                                        tender['sub_close_date'], tender['url'],
+                                        tender['attachments'], tender['contacts'], tender['dop_info'])
+                mapper.load_customer_info(tender['customer'])
+                self.logger.info('[tender-{}] PARSING OK'.format(tender['url']))
                 yield mapper
-                self.logger.info('[tender-{}] PARSING OK'.format(t_url))
+            sleep(1)
+            page += 1
+
 
     def collect(self):
         while True:
             for mapper in self.tender_list_gen():
-                self.repository.upsert(mapper.tender_short_model)
+                #self.repository.upsert(mapper.tender_short_model)
+                print(mapper.tender_short_model)
                 for model in mapper.tender_model_gen():
-                    self.rabbitmq.publish(model)
+                    print(model)
+                    #self.rabbitmq.publish(model)
             sleep(config.sleep_time)
