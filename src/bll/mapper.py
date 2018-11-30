@@ -316,8 +316,7 @@ class Mapper:
         self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
-    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_attachments, t_date_bidding, t_contacts):
+    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, contacts):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status

@@ -13,7 +13,7 @@ class Config:
     proxy = None
 
     def __init__(self):
-        self.app_id = 'agro'
+        self.app_id = 'sds_zot'
         self.root_dir = '%s/../..' % os.path.dirname(os.path.abspath(__file__))
         self.configure_logging()
         self.logger = logging.getLogger('{}.{}'.format(self.app_id, 'config'))
@@ -29,11 +29,10 @@ class Config:
         if 'proxy' in file_config and file_config['proxy']['enabled']:
             self.set_up_proxy(file_config['proxy'])
         # ссылки
-        self.base_url = 'http://agro.zakupki.tomsk.ru/Competition'
-        self.tenders_list_url = '%s/%s' % (
-            self.base_url, 'Competition_Request_Cost.aspx?Sale=0&AspxAutoDetectCookieSupport=1')
-        self.tender_url = '%s/%s' % (self.base_url,
-                                     'Competition_Document.aspx')
+        self.base_url = 'http://zakupki.sbu-azot.ru/procurement_requests'
+        self.tender_section_list = ['open_request_for_proposals', 'open_request_for_proposals_in_electronic_form',
+                                  'open_trades']
+        self.tender_type_list = ['archive', 'current']
         self.lot_url = '%s/%s' % (self.base_url, 'Competition_lot_Pos.aspx')
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
