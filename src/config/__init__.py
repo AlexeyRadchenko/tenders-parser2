@@ -13,7 +13,7 @@ class Config:
     proxy = None
 
     def __init__(self):
-        self.app_id = 'sds_zot'
+        self.app_id = 'sds_azot'
         self.root_dir = '%s/../..' % os.path.dirname(os.path.abspath(__file__))
         self.configure_logging()
         self.logger = logging.getLogger('{}.{}'.format(self.app_id, 'config'))
@@ -37,6 +37,7 @@ class Config:
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
         self.sleep_time = 30
+        self.tender_archive_pages = 3
 
     def set_up_proxy(self, proxy_config):
         proxy_str = "http://{host}".format(host=proxy_config['host'])

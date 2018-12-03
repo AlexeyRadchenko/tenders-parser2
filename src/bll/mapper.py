@@ -9,7 +9,7 @@ from src.config import config
 
 
 class Mapper:
-    platform_name = 'АО «Кольская ГМК»'
+    platform_name = 'СДС Азот'
     _platform_href = None
     _tender_short_model = None
     _customer_guid = None
@@ -31,6 +31,7 @@ class Mapper:
     tender_attachments = None
     tender_date_bidding = None
     tender_contacts = None
+    tender_description = None
 
     def __init__(self, number, status, http_worker):
         """
@@ -133,11 +134,6 @@ class Mapper:
                 displayName='Дата окончания приема заявок',
                 value=self.tender_date_open_until,
                 type=FieldType.Date
-            )).add_field(Field(
-                name='biddingDateTime',
-                displayName='Дата проведения торгов',
-                value=self.tender_date_bidding,
-                type=FieldType.Date
             ))
         )
 
@@ -160,25 +156,11 @@ class Mapper:
                     displayName='Контакты',
                     modifications=[Modification.HiddenLabel]
                 ).add_array_items(
-                    self.tender_contacts, # list
+                    [self.tender_contacts],
                     lambda item, index: c.add_field(Field(
-                        name='FIO' + str(index),
-                        displayName='ФИО',
-                        value=item[0],
-                        type=FieldType.String,
-                        modifications=[Modification.HiddenLabel]
-                    )
-                    ).add_field(Field(
-                        name='Phone' + str(index),
-                        displayName='Телефон',
-                        value=item[1],
-                        type=FieldType.String,
-                        modifications=[]
-                    )
-                    ).add_field(Field(
                         name='Email' + str(index),
                         displayName='Электронная почта',
-                        value=item[2],
+                        value=item,
                         type=FieldType.String,
                         modifications=[Modification.Email]
                     )
@@ -186,16 +168,16 @@ class Mapper:
                 )
             )
         )
-
-        shared_model.add_general(
-            lambda f: f.set_properties(
-                name='ContractDescription',
-                displayName='Описание',
-                value=self.tender_description,
-                type=FieldType.String,
-                modifications=[]
+        if self.tender_description:
+            shared_model.add_general(
+                lambda f: f.set_properties(
+                    name='ContractDescription',
+                    displayName='Описание',
+                    value=self.tender_description,
+                    type=FieldType.String,
+                    modifications=[]
+                )
             )
-        )
 
         return shared_model.to_json()
 
@@ -289,7 +271,7 @@ class Mapper:
     @property
     def platform_href(self):
         if not self._platform_href:
-            self._platform_href = 'http://www.kolagmk.ru'
+            self._platform_href = 'http://zakupki.sbu-azot.ru/'
         return self._platform_href
 
     def load_customer_info(self, customer_name):
@@ -304,7 +286,7 @@ class Mapper:
         else:
             try:
                 self.customer_region = int(
-                    str(config.customer_info_map[customer_name]['inn'])[:2])
+                    str(config.customer_info_map[customer_name]['region']))
             except KeyError:
                 self.logger.error(
                     'can`t find customer {} in customer map'.format(customer_name))
@@ -316,7 +298,7 @@ class Mapper:
         self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
-    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, contacts):
+    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, t_contacts, t_type):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -326,9 +308,9 @@ class Mapper:
         self.tender_date_open_until = t_date_close
         self.tender_url = t_url
         self.tender_lots = None
-        self.tender_placing_way = config.placing_way['открытый конкурс']
-        self.tender_placing_way_human = 'Открытый конкурс'
-        self.tender_attachments = t_attachments
-        self.tender_date_bidding = t_date_bidding
+        self.tender_placing_way = config.placing_way[t_type]
+        self.tender_placing_way_human = t_type
+        self.tender_attachments = None
+        self.tender_date_bidding = None
         self.tender_contacts = t_contacts
         return self

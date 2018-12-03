@@ -42,44 +42,48 @@ class Collector:
                'SECTION_CODE_3': tender_type
             }, url
 
-    def tender_list_gen(self, status=[]):
+    def tender_list_gen(self):
         for section in config.tender_section_list:
             for tender_type in config.tender_type_list:
                 next_page_params, url = self.get_page_params(section, tender_type)
                 while next_page_params is not None:
-                    print('Страница: ', next_page_params['PAGEN_1'], url)
+                    #print('Страница: ', next_page_params['PAGEN_1'], url)
                     tender_list_html_res = HttpWorker.get_tenders_list(url, target_param=next_page_params)
                     next_page_exist, tender_list = Parser.parse_tenders(
                         tender_list_html_res.content, section, tender_type, next_page_params['PAGEN_1'])
                     if not tender_list:
                         break
-                    print(tender_list[0]['url'])
                     for tender in tender_list:
-                        #self.logger.info('[tender-{}] PARSING STARTED'.format(t_url))
-                        #res = self.repository.get_one(t_id)
-                        #if res and res['status'] == 3:
-                        #    self.logger.info('[tender-{}] ALREADY EXIST'.format(t_url))
-                        #    continue
+                        self.logger.info('[tender-{}] PARSING STARTED'.format(tender['number']))
+                        res = self.repository.get_one(tender['id'])
+                        if res and res['status'] == tender['status']:
+                            self.logger.info('[tender-{}] ALREADY EXIST'.format(tender['number']))
+                            continue
 
                         mapper = Mapper(number=tender['number'], status=tender['status'], http_worker=HttpWorker)
 
                         mapper.load_tender_info(tender['number'], tender['status'], tender['name'], tender['pub_date'],
-                                                    tender['sub_close_date'], tender['url'], tender['email'])
+                                                tender['sub_close_date'], tender['url'], tender['email'], tender['type']
+                                                )
                         mapper.load_customer_info(tender['customer'])
-                        #yield mapper
-                        if tender['status'] not in status:
-                            status.append(tender['status'])
-                    if next_page_exist:
+                        yield mapper
+                        self.logger.info('[tender-{}] PARSING OK'.format(tender['number']))
+                    if next_page_exist and self.first_init:
                         next_page_params['PAGEN_1'] += 1
+                    elif next_page_exist and not self.first_init:
+                        if next_page_params['PAGEN_1'] < config.tender_archive_pages:
+                            next_page_params['PAGEN_1'] += 1
+                        else:
+                            break
                     else:
                         next_page_params = None
-        yield status
+        self.first_init = False
 
     def collect(self):
         while True:
             for mapper in self.tender_list_gen():
-                #self.repository.upsert(mapper.tender_short_model)
-                #for model in mapper.tender_model_gen():
-                #    self.rabbitmq.publish(model)
-                print(mapper)
+                self.repository.upsert(mapper.tender_short_model)
+                for model in mapper.tender_model_gen():
+                    print(model)
+                    self.rabbitmq.publish(model)
             sleep(config.sleep_time)

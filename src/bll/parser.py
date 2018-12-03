@@ -40,6 +40,7 @@ class Parser:
         for tender in tender_items:
             number = tender.find('div', {'class': 'title'}).text
             pub_date = cls._parse_datetime_with_timezone(tender.find('div', {'class': 'date-ads'}).text, tz=True)
+            sub_close_date = tender.find('div', {'class': 'date-open'}).text
             items.append({
                 'id': 'AZOT{}_1'.format(number),
                 'number': 'AZOT{}'.format(number),
@@ -50,7 +51,7 @@ class Parser:
                 'email': tender.find('div', {'class': 'mail'}).find('a').text,
                 'pub_date': pub_date,
                 'sub_close_date': cls._parse_datetime_with_timezone(
-                    tender.find('div', {'class': 'date-open'}).text, tz=True),
+                    sub_close_date, tz=True) if sub_close_date else None,
                 'customer': 'АО СДС Азот',
                 'url': tender_page_url.format(section, tender_type, page)
             })
