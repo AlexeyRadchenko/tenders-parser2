@@ -5,13 +5,19 @@ import requests
 from src.bll.tools import retry
 from src.config import config
 
+import asyncio
+#from pyppeteer.launcher import Launcher
+from pyppeteer import launch
+
 
 class HttpWorker:
     timeout = 30
     logger = logging.getLogger('{}.{}'.format(config.app_id, 'http'))
-    cookies = {'ASP.NET_SessionId': 'dkcoef1sbsslbuhcodmbdckf'}
-    documentation_tab = {'__EVENTARGUMENT': 'CLICK:1'}
-    addon_tab = {'__EVENTARGUMENT': 'CLICK:2'}
+    cookies = {'ASP.NET_SessionId': 'ubn34qg3xsxiherq2sonh20q', 'MenuPage': '0'}
+    current_open_selector = '#ctl00_RootContentPlaceHolder_MainPageControl_CurrentGridView_DXPagerBottom_DDB'
+    current_select = '#ctl00_RootContentPlaceHolder_MainPageControl_CurrentGridView_DXPagerBottom_PSP_DXI5_T'
+    arc_open_selector = '#ctl00_RootContentPlaceHolder_MainPageControl_ArchiveGridView_DXPagerBottom_DDB'
+    arc_select = '#ctl00_RootContentPlaceHolder_MainPageControl_ArchiveGridView_DXPagerBottom_PSP_DXI4_T'
 
     @classmethod
     @retry(logger)
@@ -33,30 +39,77 @@ class HttpWorker:
         return r.json()
 
     @classmethod
+    async def _js_render_tender_list(cls, arc):
+        browser = await launch()
+        page = await browser.newPage()
+        await page.goto(config.base_url, proxies=config.proxy)
+        if arc:
+            await page.click('#ctl00_RootContentPlaceHolder_MainPageControl_T1T')
+        await page.waitForSelector(cls.arc_open_selector if arc else cls.current_open_selector)
+        await page.click(cls.arc_open_selector if arc else cls.current_open_selector)
+        await page.waitForSelector(cls.arc_select if arc else cls.current_select)
+        await page.click(cls.arc_select if arc else cls.current_select)
+        await page.waitFor(6000)
+        #await page.screenshot({'path': 'example.png'})
+        result = await page.content()
+        await page.close()
+        await browser.close()
+        return result
+
+    @classmethod
+    async def _js_render_tender(cls, url):
+        browser = await launch()
+        page = await browser.newPage()
+        await page.goto(config.base_url + url, proxies=config.proxy)
+        await page.waitForSelector(
+            '#ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_LotsGridView_DXPagerBottom_DDB')
+        await page.click(
+            '#ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_LotsGridView_DXPagerBottom_DDB')
+        await page.waitForSelector(
+            '#ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_LotsGridView_DXPagerBottom_PSP_DXI6_T')
+        await page.click(
+            '#ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_LotsGridView_DXPagerBottom_PSP_DXI6_T')
+        await page.waitFor(4000)
+        result = await page.content()
+        await page.close()
+        await browser.close()
+        return result
+
+    @classmethod
+    async def _js_lot_render(cls, url):
+        browser = await launch()
+        page = await browser.newPage()
+        await page.goto(url, proxies=config.proxy)
+        #await page.screenshot({'path': 'example.png'})
+        result = await page.content()
+        await page.waitFor(4000)
+        await page.close()
+        await browser.close()
+        return result
+
+    @classmethod
     @retry(logger)
-    def get_tenders_list(cls, target_param=None):
-        if not target_param:
-            res = requests.get(config.tenders_list_url,
-                               cookies=cls.cookies, proxies=config.proxy)
-        else:
-            res = requests.post(config.tenders_list_url, data=target_param,
-                                cookies=cls.cookies, proxies=config.proxy)
+    def get_tenders_list(cls, arc=False):
+        res = asyncio.get_event_loop().run_until_complete(cls._js_render_tender_list(arc))
         return res
 
     @classmethod
     @retry(logger)
-    def get_tender(cls, tender_url, documentation=False, additional_info=False):
-        if documentation:
-            event_target_data = cls.documentation_tab
-        elif additional_info:
-            event_target_data = cls.addon_tab
-        else:
-            event_target_data = {}
-
-        return requests.post(tender_url, data=event_target_data, cookies=cls.cookies,
-                             proxies=config.proxy)
+    def get_tender(cls, tender_url):
+        return requests.post(config.base_url + tender_url, cookies=cls.cookies, proxies=config.proxy)
 
     @classmethod
     @retry(logger)
-    def get_lot(cls, lot_url):
-        return requests.post(lot_url, cookies=cls.cookies, proxies=config.proxy)
+    def get_render_tender(cls, tender_url):
+        res = asyncio.get_event_loop().run_until_complete(cls._js_render_tender(config.base_url + tender_url))
+        return res
+
+    @classmethod
+    @retry(logger)
+    def get_lot(cls, lot_url, browser=True):
+        if browser:
+            res = asyncio.get_event_loop().run_until_complete(cls._js_lot_render(config.base_url + lot_url))
+            return res
+        else:
+            res = requests.get(config.base_url + lot_url, proxies=config.proxy)
+            return res

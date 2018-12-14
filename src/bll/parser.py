@@ -5,6 +5,7 @@ from lxml import html
 
 from src.bll import tools
 from src.config import config
+from bs4 import BeautifulSoup
 
 
 class Parser:
@@ -16,147 +17,122 @@ class Parser:
     REGEX_EMAIL = re.compile(r'[^\s]+@[^.]+.\w+')
     REGEX_PHONE = re.compile(r'((8|\+7)[\- ]?)?(\(?\d{3,5}\)?[\- ]?)?[\d\- ]{7,16}')
     REGEX_FILE_NAME = re.compile(r"[^/]+$")
+    REGEX_LOT_ROW = re.compile(r'ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_LotsGridView_DXDataRow\d{1,5}')
+    REGEX_DOC_ROW = re.compile(r'ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_DocumentsGridView_DXDataRow\d{1,5}')
 
     @classmethod
-    def _get_tender_id(cls, tender_num):
-        return 'НА{}_1'.format(int(sha256(tender_num.encode('utf-8')).hexdigest(), 16) % 10 ** 8)
-
-    @classmethod
-    def _next_page_exist(cls, html):
-        if html.find('div', {'class': 'pagination'}).find_all('a')[-1].attrs['class'][0] == 'pagination__arr':
-            return True
-
-    @classmethod
-    def parse_tenders(cls, tenders_list_html_raw):
-        tenders_list_html = html.fromstring(tenders_list_html_raw)
-        next_page_params = {}
-        tenders_table_html_element = tenders_list_html.xpath("//table[@id='MainContent_dgProducts']")[0]
-        paginator = tenders_table_html_element.xpath("tr").pop().xpath("td")[0]
-        next_page_el = paginator.xpath("a[text()='>']")
-        if next_page_el:
-            next_page_params['__EVENTTARGET'] = cls.REGEX_EVENT_TARGET.search(next_page_el[0].xpath("@href")[0]).group(
-                1)
-        if next_page_params:
-            form = tenders_list_html.xpath("//form")[0]
-            next_page_params.update({
-                '__VIEWSTATE': form.xpath("div/input[@id='__VIEWSTATE']")[0].value,
-                '__EVENTVALIDATION': form.xpath("div/input[@id='__EVENTVALIDATION']")[0].value})
-        return next_page_params or None, cls._parse_tenders_gen(tenders_table_html_element)
-
-    @classmethod
-    def _parse_tenders_gen(cls, products_table_html_element):
-        product_trs = products_table_html_element.xpath("tr[contains(@class,'ltin')]")
-        for product_tr in product_trs:
-            product_tds = product_tr.xpath("td")
-            href = product_tds[4].xpath("a")[0]
-            tender_name = href.xpath("span")[0].text.strip()
-            tender_url = '%s/%s' % (config.base_url, href.xpath("@href")[0])
-            tender_id = cls.REGEX_TENDER_ID.search(tender_url).group(1)
-            dt_publication = cls._parse_datetime_with_timezone(product_tds[3].text)
-            dt_open_str = product_tds[5].text.replace('\r\n', '').strip()
-            dt_open = cls._parse_datetime_with_timezone(dt_open_str) if dt_open_str else None
-            customer_name = product_tds[6].xpath("a/span")[0].text
-            try:
-                placing_way = config.placing_way[product_tds[7].text.lower()]
-                placing_way_human = product_tds[7].text.lower()
-            except KeyError:
-                placing_way, placing_way_human = None, None
-                cls.logger.warning('unknown tender placing way `{}`'.format(product_tds[7].text.lower()))
-            yield (
-                tender_id, tender_name, tender_url, customer_name, placing_way, placing_way_human, dt_publication,
-                dt_open)
-
-    @classmethod
-    def parse_tender_gen(cls, tender_html_raw, dt_open):
-        lots_gen = None
-        tender_html = html.fromstring(tender_html_raw)
-        lots_element = tender_html.xpath("//tr[@id='MainContent_carTabPage_TrLotPage2']")
-        date_close_raw = tender_html.xpath("//span[@id='MainContent_carTabPage_txtBiddingEndDate']")
-        price_raw = tender_html.xpath("//a[@id='MainContent_carTabPage_txtStartSumm']")
-        price = float(price_raw[0].text.replace(',', '.').replace('\xa0', '')) if price_raw and price_raw[0].text \
-            else None
-        date_close = cls._parse_datetime_with_timezone(date_close_raw[0].text) if date_close_raw and date_close_raw[
-            0].text else dt_open
-        if date_close:
-            status = 1 if date_close > tools.get_utc() else 3
-        else:
-            status = 3
-        if lots_element:
-            lots_trs = lots_element[0].xpath("td/table/tr[not(@class='DataGrid_HeaderStyle')]")
-            lots_gen = cls._parse_lots_gen(lots_trs)
-        yield status, price, date_close, lots_gen
-
-    @classmethod
-    def _parse_lots_gen(cls, lots_trs_elements):
-        for lot_tr in lots_trs_elements:
-            lot_tds = lot_tr.xpath("td")
-            lot_num = int(lot_tds[0].text.strip().replace('\xa0', ''))
-            lot_href_el = lot_tds[1].xpath("a")[0]
-            lot_url = '%s/%s' % (config.base_url, lot_href_el.xpath("@href")[0])
-            lot_name = lot_href_el.text.strip().replace('\xa0', '')
-            lot_quantity = ('%s %s' % (lot_tds[3].text.strip(), lot_tds[2].text.strip())).replace('\xa0', '') if \
-                lot_tds[2].text else lot_tds[3].text.strip().replace('\xa0', '')
-            lot_price = float(lot_tds[4].text.replace(',', '.').replace('\xa0', ''))
-            yield lot_num, lot_name, lot_url, lot_quantity, lot_price
-
-    @classmethod
-    def _get_contacts(cls, text_items):
-        full_text = ' '.join(text_items)
-        full_text = ' '.join(full_text.split())
-        phone_numbers_text_list = [number
-                                   for number in full_text.split(',') if
-                                   ('8' in number or '7' in number) and 'Факс' not in number]
-        fio_list = re.findall(cls.REGEX_FIO_PATTERNS, full_text)
-        email_list = re.findall(cls.REGEX_EMAIL, full_text)
-        phone_list = [cls._get_phone(item) for item in phone_numbers_text_list]
-        contacts = []
-        for fio, email, phone in zip(fio_list, email_list, phone_list):
-            contacts.append({
-                'fio': fio,
-                'phone': phone,
-                'email': email
+    def get_tenders_list(cls, html_res):
+        html = BeautifulSoup(html_res, 'lxml')
+        table = html.find('table', {'id': 'ctl00_RootContentPlaceHolder_MainPageControl_ArchiveGridView_DXMainTable'})
+        rows = [row for row in table.find_all('tr') if row.attrs.get('id') and re.search(
+            'ctl00_RootContentPlaceHolder_MainPageControl_ArchiveGridView_DXDataRow\d{1,20}', row.attrs['id'])]
+        tenders_list = []
+        for row in rows:
+            columns = row.find_all('td')
+            tenders_list.append({
+                'number': columns[0].find('a').text,
+                'name': columns[1].find('a').text,
+                'lots_quantity': int(columns[2].text),
+                'start_date': columns[3].text,
+                'end_date': columns[4].text,
+                'type': columns[5].text,
+                'status': columns[6].text,
+                'link': columns[0].find('a').attrs['href'],
             })
-        return contacts
+        return tenders_list
 
     @classmethod
-    def _get_phone(cls, phone_str):
-        phone = re.search(cls.REGEX_PHONE, phone_str)
-        if phone:
-            return phone.group()
+    def _get_tender_status(cls, status):
+        if status in ['Объявлена',  'Прием ставок']:
+            return 1
+        elif status in ['Завершен прием ставок', 'Идет I этап', 'Завершен I этап', 'Идет II этап']:
+            return 2
+        elif status == 'Состоялась':
+            return 3
+        elif status in ['Не состоялась', 'Отменена']:
+            return 4
+        else:
+            return 0
 
     @classmethod
-    def _get_attachments(cls, url_list, pub_date):
+    def parse_tender(cls, tender_html_raw, tender_item):
+        html = BeautifulSoup(tender_html_raw, 'lxml')
+        #print(html.find('span', {'id': 'ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionLotsCountLabel'}).text)
+        pub_date = cls._parse_datetime_with_timezone(html.find(
+                'span', {'id': 'ctl00_RootContentPlaceHolder_AuctionFormLayout_CDateLabel'}).text, False)
+        print(tender_item['link'])
+        return {
+            'number': tender_item['number'],
+            'name': tender_item['name'],
+            'type': tender_item['type'],
+            'status': cls._get_tender_status(tender_item['status']),
+            'lots': cls._get_tender_lots(
+                html.find('table', {'id': 'ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_LotsGridView'})),
+            'sub_start_date': cls._parse_datetime_with_timezone(tender_item['start_date'], False),
+            'sub_close_date': cls._parse_datetime_with_timezone(tender_item['end_date'], False),
+            'customer': html.find(
+                'input', {'id': 'ctl00_RootContentPlaceHolder_AuctionFormLayout_EnterpriseComboBox_I'}).attrs['value'],
+            'contact_fio': html.find(
+                'span', {'id': 'ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionResponsiblePersonLabel'}).text,
+            'pub_date': pub_date,
+            'attachments': cls._get_attachments(html, pub_date, tender_item['link']),
+        }
+
+    @classmethod
+    def _get_tender_lots(cls, lots_html):
+        lots = [lot for lot in lots_html.find_all('tr')
+                if lot.attrs.get('id') and re.search(cls.REGEX_LOT_ROW, lot.attrs['id'])]
+        lots_list = []
+        for lot_row in lots:
+            lot_column = lot_row.find_all('td')
+            lots_list.append({
+                'name': lot_column[3].find('a').text,
+                'url': lot_column[3].find('a').attrs['href'].replace('../', ''),
+                'quantity': lot_column[4].text,
+            })
+        return lots_list
+
+    @classmethod
+    def parse_lot_info(cls, lot_html):
+        lot_html = BeautifulSoup(lot_html, 'lxml')
+        return {
+            'measure': lot_html.find(
+                'input', {'id': 'ctl00_RootContentPlaceHolder_LotFormLayout_UnitComboBox_I'}).attrs['value'],
+            'price': float(lot_html.find(
+                'input', {'id': 'ctl00_RootContentPlaceHolder_LotFormLayout_PlannedPricePerUnitTextBox_Raw'}
+                ).attrs['value'].replace(',', '.')),
+            'cost': float(lot_html.find(
+                'input', {'id': 'ctl00_RootContentPlaceHolder_LotFormLayout_PlannedSumTextBox_Raw'}
+                ).attrs['value'].replace(',', '.')),
+        }
+
+    @classmethod
+    def _get_attachments(cls, doc_html, pub_date, tender_url):
+        table = doc_html.find(
+            'table', {'id': 'ctl00_RootContentPlaceHolder_AuctionFormLayout_AuctionPageControl_DocumentsGridView_DXMainTable'})
+        doc_rows = [row for row in table.find_all('tr')
+                    if row.attrs.get('id') and re.search(cls.REGEX_DOC_ROW, row.attrs['id'])]
         attachments = []
-        for url in url_list:
+        for doc_row in doc_rows:
+            column = doc_row.find_all('td')
             attachments.append({
-                'displayName': url.text.replace('\xa0', ''),
-                'href': url.attrs['href'],
+                'displayName': column[0].text,
+                'href': config.base_url + tender_url,
                 'publicationDateTime': pub_date,
-                'realName': cls._get_file_name(url.attrs['href']),
-                'size': None,
+                'realName': None,
+                'size': cls._get_file_size(column[2].text),
             })
         return attachments
 
     @classmethod
-    def parse_lot_gen(cls, lot_html_raw):
-        lot_html = html.fromstring(lot_html_raw)
-        positions_trs = lot_html.xpath("//span[@id='MainContent_TableGround']/tr[@style='background:WhiteSmoke']")
-        if positions_trs:
-            pos_gen = cls._parse_positions_gen(positions_trs)
-            yield pos_gen
-
-    @classmethod
-    def _parse_positions_gen(cls, positions_trs_list):
-        for tr in positions_trs_list:
-            spans = tr.xpath("td/span")
-            name = spans[0].text.replace('\xa0', '')
-            q, unit = None, None
-            if len(spans) > 1:
-                unit = spans[1].text.strip().replace('\xa0', '')
-            if len(spans) > 2:
-                q = spans[2].text.strip().replace('\xa0', '')
-            quantity = '%s %s' % (q, unit) if unit and q else q if q else None
-            yield name, quantity
+    def _get_file_size(cls, size_str):
+        size_str = size_str.replace('\xa0', '')
+        if 'КБ' in size_str:
+            return int(float(size_str.rstrip(' КБ').replace(',', '.')) * 1000)
+        if 'МБ' in size_str:
+            return int(float(size_str.rstrip(' МБ').replace(',', '.')) * 1000000)
+        if 'ГБ' in size_str:
+            return int(float(size_str.rstrip(' ГБ').replace(',', '.')) * 1000000000)
 
     @classmethod
     def _parse_datetime_with_timezone(cls, datetime_str, tz):
