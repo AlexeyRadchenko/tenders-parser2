@@ -76,15 +76,31 @@ class HttpWorker:
         return result
 
     @classmethod
-    async def _js_lot_render(cls, url):
-        browser = await launch()
-        page = await browser.newPage()
+    async def _js_lot_render(cls, url, length, index):
+        if index == 0:
+            # browser = await launch()
+            browser = await launch(
+                headless=True,
+                args=['--no-sandbox'],
+                autoClose=False
+            )
+            cls.browser_endpoint = browser.wsEndpoint
+        else:
+            browser = await connect({'browserWSEndpoint': cls.browser_endpoint})
+        pages = await browser.pages()
+        if len(pages) < 3:
+            page = await browser.newPage()
+        else:
+            page = pages[0]
         await page.goto(url, proxies=config.proxy)
-        #await page.screenshot({'path': 'example.png'})
+        # await page.screenshot({'path': 'example.png'})
         result = await page.content()
         await page.waitFor(4000)
         await page.close()
-        await browser.close()
+        if index + 1 == length:
+            await browser.close()
+        else:
+            await browser.disconnect()
         return result
 
     @classmethod
