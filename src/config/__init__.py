@@ -25,6 +25,7 @@ class Config:
         self.placing_way = file_config['placing_way']
         self.customer_info_map = file_config['customer_info_map']
         self.platform_timezone = file_config['platform_timezone']
+        self.regions_map = file_config['regions']
         # прокси
         if 'proxy' in file_config and file_config['proxy']['enabled']:
             self.set_up_proxy(file_config['proxy'])

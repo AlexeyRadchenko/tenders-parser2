@@ -25,9 +25,9 @@ class Parser:
             'name': tender['title'],
             'type': tender['type_name'],
             'status': cls._get_status(tender['status_id']),
-            'region': int(company['kpp'][:2]),
-            'company': company['title_full'],
-            'currency': tender['currency_name'],
+            'region': cls._get_company_region(company['address']), #int(company['kpp'][:2]),
+            'customer': company['title_full'],
+            #'currency': tender['currency_name'],
             'delivery_date': tender['ship_date'],
             'positions': [
                 {'name': pos['name'], 'quantity': pos['amount'], 'measure': pos['unit_name']} for pos in positions],
@@ -46,6 +46,13 @@ class Parser:
             return 3
         if status_num == 100:
             return 0
+
+    @classmethod
+    def _get_company_region(cls, address):
+        for region in config.regions_map.keys():
+            if region in address:
+                return config.regions_map[region]
+        return 0
 
     @classmethod
     def _parse_datetime_with_timezone(cls, datetime_str, tz):

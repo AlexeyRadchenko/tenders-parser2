@@ -9,7 +9,7 @@ from src.config import config
 
 
 class Mapper:
-    platform_name = 'АО «Кольская ГМК»'
+    platform_name = 'Тендер.про'
     _platform_href = None
     _tender_short_model = None
     _customer_guid = None
@@ -31,8 +31,9 @@ class Mapper:
     tender_attachments = None
     tender_date_bidding = None
     tender_contacts = None
+    tender_positions = None
 
-    def __init__(self, number, status, http_worker):
+    def __init__(self, number, status, sub_close_date, http_worker):
         """
 
         Args:
@@ -44,12 +45,14 @@ class Mapper:
             '{}.{}'.format(config.app_id, 'mapper'))
         self.tender_id = number
         self.tender_status = status
+        self.sub_close_date = sub_close_date
         self.http = http_worker
 
     @property
     def tender_short_model(self):
         if not self._tender_short_model:
-            self._tender_short_model = {'_id': '{}_{}'.format(self.tender_id, 1), 'status': self.tender_status}
+            self._tender_short_model = {'_id': '{}_{}'.format(self.tender_id, 1), 'status': self.tender_status,
+                                        'sub_close_date': self.sub_close_date}
         return self._tender_short_model
 
     def tender_model_gen(self):
@@ -68,7 +71,8 @@ class Mapper:
                 customer_name=self.customer_name
             ))
         # информация о закупках
-        if lot and 'positions' in lot:
+        #if not lot and 'positions' in lot:
+        if self.tender_positions:
             shared_model.add_category(
                 lambda c: c.set_properties(
                     name='ObjectInfo',
@@ -80,14 +84,11 @@ class Mapper:
                     ).set_header(
                         lambda th: th.add_cells([
                             Head(name='Name', displayName='Наименование'),
-                            Head(name='Code', displayName='ОКПД2'),
                             Head(name='Quantity', displayName='Количество'),
-                            Head(name='PricePerOne',
-                                 displayName='Цена за единицу'),
-                            Head(name='Price', displayName='Стоимость')
+                            Head(name='Measure', displayName='Ед.изм.')
                         ])
                     ).add_rows(
-                        lot['positions'],
+                        self.tender_positions,
                         lambda elem, row: row.add_cells([
                             Cell(
                                 name='Name',
@@ -95,24 +96,14 @@ class Mapper:
                                 value=elem['name']
                             ),
                             Cell(
-                                name='Code',
-                                type=FieldType.String,
-                                value=None
-                            ),
-                            Cell(
                                 name='Quantity',
-                                type=FieldType.Integer,
+                                type=FieldType.String,
                                 value=elem['quantity']
                             ),
                             Cell(
-                                name='PricePerOne',
-                                type=FieldType.Price,
-                                value=None
-                            ),
-                            Cell(
-                                name='Price',
-                                type=FieldType.Price,
-                                value=None
+                                name='Measure',
+                                type=FieldType.String,
+                                value=elem['measure']
                             )
                         ])
                     )
@@ -133,11 +124,6 @@ class Mapper:
                 displayName='Дата окончания приема заявок',
                 value=self.tender_date_open_until,
                 type=FieldType.Date
-            )).add_field(Field(
-                name='biddingDateTime',
-                displayName='Дата проведения торгов',
-                value=self.tender_date_bidding,
-                type=FieldType.Date
             ))
         )
 
@@ -154,46 +140,6 @@ class Mapper:
                 type=FieldType.String,
                 modifications=[]
             )
-            ).add_array(
-                lambda c: c.set_properties(
-                    name='Contacts',
-                    displayName='Контакты',
-                    modifications=[Modification.HiddenLabel]
-                ).add_array_items(
-                    self.tender_contacts, # list
-                    lambda item, index: c.add_field(Field(
-                        name='FIO' + str(index),
-                        displayName='ФИО',
-                        value=item[0],
-                        type=FieldType.String,
-                        modifications=[Modification.HiddenLabel]
-                    )
-                    ).add_field(Field(
-                        name='Phone' + str(index),
-                        displayName='Телефон',
-                        value=item[1],
-                        type=FieldType.String,
-                        modifications=[]
-                    )
-                    ).add_field(Field(
-                        name='Email' + str(index),
-                        displayName='Электронная почта',
-                        value=item[2],
-                        type=FieldType.String,
-                        modifications=[Modification.Email]
-                    )
-                    )
-                )
-            )
-        )
-
-        shared_model.add_general(
-            lambda f: f.set_properties(
-                name='ContractDescription',
-                displayName='Описание',
-                value=self.tender_description,
-                type=FieldType.String,
-                modifications=[]
             )
         )
 
@@ -289,7 +235,7 @@ class Mapper:
     @property
     def platform_href(self):
         if not self._platform_href:
-            self._platform_href = 'http://www.kolagmk.ru'
+            self._platform_href = 'http://www.tender.pro'
         return self._platform_href
 
     def load_customer_info(self, customer_name):
@@ -317,7 +263,7 @@ class Mapper:
         return self
 
     def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_contacts):
+                         t_type, t_positions):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -327,9 +273,10 @@ class Mapper:
         self.tender_date_open_until = t_date_close
         self.tender_url = t_url
         self.tender_lots = None
-        self.tender_placing_way = config.placing_way['открытый конкурс']
-        self.tender_placing_way_human = 'Открытый конкурс'
+        self.tender_positions = t_positions
+        self.tender_placing_way = config.placing_way[t_type]
+        self.tender_placing_way_human = t_type
         self.tender_attachments = None
         self.tender_date_bidding = None
-        self.tender_contacts = t_contacts
+        self.tender_contacts = None
         return self

@@ -51,8 +51,9 @@ class Collector:
                     "id": item['id']
                 }
 
-                #tender = HttpWorker.get_api_data(config.tender_url, target_param=tender_params)
-                tender = HttpWorker.get_api_data(config.tender_url_brief, target_param=tender_params)
+                tender = HttpWorker.get_api_data(config.tender_url, target_param=tender_params)
+                #tender = HttpWorker.get_api_data(config.tender_url_brief, target_param=tender_params)
+                #print(tender)
                 if tender.get('result'):
                     #tender_files = HttpWorker.get_api_data(config.tender_files_url, target_param=tender_params)
                     tender_positions = HttpWorker.get_api_data(config.tender_positions_url, target_param=tender_params)
@@ -66,25 +67,32 @@ class Collector:
                     tender_positions['result']['data'],
                     tender_company_info['result']['data']
                 )
-                print(tender_data)
-                res = self.repository.get_one(tender_data['id'])
-                if res and res['status'] == tender_data['status'] and \
-                        res['sub_close_date'] == tender_data['sub_close_date']:
-                    self.logger.info('[tender-{}] ALREADY EXIST'.format(tender_data['id']))
-                    continue
+                #print(tender_data)
+                #res = self.repository.get_one(tender_data['id'])
+                #if res and res['status'] == tender_data['status'] and \
+                #        res['sub_close_date'] == tender_data['sub_close_date']:
+                #    self.logger.info('[tender-{}] ALREADY EXIST'.format(tender_data['id']))
+                #    continue
 
-                mapper = Mapper(number=tender_data['number'], status=tender_data['status'], http_worker=HttpWorker)
+                mapper = Mapper(number=tender_data['number'], status=tender_data['status'],
+                                sub_close_date=tender_data['sub_close_date'], http_worker=HttpWorker)
                 mapper.load_tender_info(tender_data['number'], tender_data['status'], tender_data['name'],
                                         tender_data['pub_date'], tender_data['sub_close_date'], tender_data['url'],
-                                      t_dt_open, t_dt_close, t_url, tender['lots'])
-                mapper.load_customer_info(c_name)
+                                        tender_data['type'], tender_data['positions'])
+                mapper.load_customer_info(tender_data['customer'])
                 yield mapper
-                #self.logger.info('[tender-{}] PARSING OK'.format(t_url))
+                self.logger.info('[tender-{}] PARSING OK, URL-{}'.format(tender_data['id'], tender_data['url']))
+                if data_length != 0:
+                    next_page_params['offset'] += 200
+                else:
+                    next_page_params = None
 
     def collect(self):
         while True:
             for mapper in self.tender_list_gen():
-                self.repository.upsert(mapper.tender_short_model)
+                print(mapper.tender_short_model)
+                #self.repository.upsert(mapper.tender_short_model)
                 for model in mapper.tender_model_gen():
-                    self.rabbitmq.publish(model)
+                    print(model)
+                    #self.rabbitmq.publish(model)
             sleep(config.sleep_time)
