@@ -317,7 +317,7 @@ class Mapper:
         return self
 
     def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_attachments, t_date_bidding, t_contacts):
+                         t_contacts):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -329,7 +329,7 @@ class Mapper:
         self.tender_lots = None
         self.tender_placing_way = config.placing_way['открытый конкурс']
         self.tender_placing_way_human = 'Открытый конкурс'
-        self.tender_attachments = t_attachments
-        self.tender_date_bidding = t_date_bidding
+        self.tender_attachments = None
+        self.tender_date_bidding = None
         self.tender_contacts = t_contacts
         return self

@@ -13,7 +13,7 @@ class Config:
     proxy = None
 
     def __init__(self):
-        self.app_id = 'agro'
+        self.app_id = 'tender-pro'
         self.root_dir = '%s/../..' % os.path.dirname(os.path.abspath(__file__))
         self.configure_logging()
         self.logger = logging.getLogger('{}.{}'.format(self.app_id, 'config'))
@@ -29,12 +29,18 @@ class Config:
         if 'proxy' in file_config and file_config['proxy']['enabled']:
             self.set_up_proxy(file_config['proxy'])
         # ссылки
-        self.base_url = 'http://agro.zakupki.tomsk.ru/Competition'
+        self.base_url = 'http://www.tender.pro'
         self.tenders_list_url = '%s/%s' % (
-            self.base_url, 'Competition_Request_Cost.aspx?Sale=0&AspxAutoDetectCookieSupport=1')
+            self.base_url, 'api/_info.tenderlist_by_set.json')
         self.tender_url = '%s/%s' % (self.base_url,
-                                     'Competition_Document.aspx')
-        self.lot_url = '%s/%s' % (self.base_url, 'Competition_lot_Pos.aspx')
+                                     'api/_tender.info.json')
+        self.tender_url_brief = '%s/%s' % (self.base_url,
+                                     'api/_tender.info.brief.json')
+        self.tender_files_url = '%s/%s' % (self.base_url,
+                                     'api/_tender.file_info.json')
+        self.tender_positions_url = '%s/%s' % (self.base_url,
+                                           'api/_tender.item.json')
+        self.tender_company_info = '%s/%s' % (self.base_url, 'api/_company.info_public.json')
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
         self.sleep_time = 30

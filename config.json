@@ -2,7 +2,7 @@
   "mongodb": {
     "host": "localhost",
     "port": 27017,
-    "database": "mmk",
+    "database": "tender-pro",
     "collection": "notifications"
   },
   "rabbitmq": {
@@ -22,7 +22,7 @@
     "host": "",
     "token": ""
   },
-  "platform_timezone": "+0700",
+  "platform_timezone": "+0500",
   "placing_way": {
     "запрос котировок": 4,
     "открытый аукцион": 2,

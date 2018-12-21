@@ -32,38 +32,54 @@ class Collector:
         return self._rabbitmq
 
     def tender_list_gen(self):
-        next_page_params = {}
+        next_page_params = {
+            "set_type_id": "2",
+            "types": "1, 5, 2, 4, 6",
+            "max_rows": "200",
+            "_key": "1732ede4de680a0c93d81f01d7bac7d1",
+            "set_id": "270",
+            "offset": 0  # + 200
+        }
         while next_page_params is not None:
-            tender_list_html_res = HttpWorker.get_tenders_list(next_page_params)
-            next_page_params, tender_list_gen = Parser.parse_tenders(tender_list_html_res.text)
-            for t_id, t_name, t_url, c_name, t_pway, t_pway_human, t_dt_publication, t_dt_open in tender_list_gen:
-                if not c_name:
+            tender_list_res = HttpWorker.get_api_data(config.tenders_list_url, next_page_params)
+            data_length = len(tender_list_res['result']['data'])
+            for item in tender_list_res['result']['data']:
+
+                tender_params = {
+                    "_key": "1732ede4de680a0c93d81f01d7bac7d1",
+                    "company_id": item['company_id'],
+                    "id": item['id']
+                }
+
+                #tender = HttpWorker.get_api_data(config.tender_url, target_param=tender_params)
+                tender = HttpWorker.get_api_data(config.tender_url_brief, target_param=tender_params)
+                if tender.get('result'):
+                    #tender_files = HttpWorker.get_api_data(config.tender_files_url, target_param=tender_params)
+                    tender_positions = HttpWorker.get_api_data(config.tender_positions_url, target_param=tender_params)
+                    tender_company_info = HttpWorker.get_api_data(
+                        config.tender_company_info, target_param={'id': item['company_id']})
+                else:
                     continue
-                self.logger.info('[tender-{}] PARSING STARTED'.format(t_url))
-                res = self.repository.get_one(t_id)
-                if res and res['status'] == 3:
-                    self.logger.info('[tender-{}] ALREADY EXIST'.format(t_url))
+                self.logger.info('[tender-{}] PARSING STARTED'.format(tender['result']['data']['id']))
+                tender_data = Parser.clear_tender_data(
+                    tender['result']['data'],
+                    tender_positions['result']['data'],
+                    tender_company_info['result']['data']
+                )
+                print(tender_data)
+                res = self.repository.get_one(tender_data['id'])
+                if res and res['status'] == tender_data['status'] and \
+                        res['sub_close_date'] == tender_data['sub_close_date']:
+                    self.logger.info('[tender-{}] ALREADY EXIST'.format(tender_data['id']))
                     continue
-                tender = {'id': t_id, 'name': t_name, 'customer_name': c_name, 'placing_way': t_pway,
-                          'date_publication': t_dt_publication, 'date_open': t_dt_open, 'lots': [], 'date_close': None}
-                tender_html_raw = HttpWorker.get_tender(tender_url=t_url)
-                for t_status, t_price, t_dt_close, l_gen in Parser.parse_tender_gen(tender_html_raw.text, t_dt_open):
-                    tender['date_close'] = t_dt_close
-                    tender['status'] = t_status
-                    mapper = Mapper(id_=tender['id'], status=tender['status'], http_worker=HttpWorker)
-                    for l_num, l_name, l_url, l_quantity, l_price in l_gen:
-                        lot = {'num': l_num, 'name': l_name, 'url': l_url, 'quantity': l_quantity, 'price': l_price,
-                               'positions': []}
-                        lot_html_raw = HttpWorker.get_lot(l_url)
-                        for pos_gen in Parser.parse_lot_gen(lot_html_raw.text):
-                            for p_name, p_quantity in pos_gen:
-                                lot['positions'].append({'name': p_name, 'quantity': p_quantity})
-                        tender['lots'].append(lot)
-                    mapper.load_tender_info(t_id, t_status, t_name, t_price, t_pway, t_pway_human, t_dt_publication,
-                                            t_dt_open, t_dt_close, t_url, tender['lots'])
-                    mapper.load_customer_info(c_name)
-                    yield mapper
-                self.logger.info('[tender-{}] PARSING OK'.format(t_url))
+
+                mapper = Mapper(number=tender_data['number'], status=tender_data['status'], http_worker=HttpWorker)
+                mapper.load_tender_info(tender_data['number'], tender_data['status'], tender_data['name'],
+                                        tender_data['pub_date'], tender_data['sub_close_date'], tender_data['url'],
+                                      t_dt_open, t_dt_close, t_url, tender['lots'])
+                mapper.load_customer_info(c_name)
+                yield mapper
+                #self.logger.info('[tender-{}] PARSING OK'.format(t_url))
 
     def collect(self):
         while True:
