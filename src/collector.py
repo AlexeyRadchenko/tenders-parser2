@@ -1,4 +1,5 @@
 import logging
+import json
 
 from src.bll.http_worker import HttpWorker
 from src.bll.mapper import Mapper
@@ -33,11 +34,11 @@ class Collector:
 
     def tender_list_gen(self):
         next_page_params = {
-            "set_type_id": "2",
-            "types": "1, 5, 2, 4, 6",
-            "max_rows": "200",
+            "set_type_id": 2,
+            "types": [1, 5, 2, 4, 6],
+            "max_rows": 200,
             "_key": "1732ede4de680a0c93d81f01d7bac7d1",
-            "set_id": "270",
+            "set_id": 270, # 270
             "offset": 0  # + 200
         }
         while next_page_params is not None:
@@ -52,22 +53,22 @@ class Collector:
                 }
 
                 tender = HttpWorker.get_api_data(config.tender_url, target_param=tender_params)
-                #tender = HttpWorker.get_api_data(config.tender_url_brief, target_param=tender_params)
-                #print(tender)
+
                 if tender.get('result'):
-                    #tender_files = HttpWorker.get_api_data(config.tender_files_url, target_param=tender_params)
                     tender_positions = HttpWorker.get_api_data(config.tender_positions_url, target_param=tender_params)
                     tender_company_info = HttpWorker.get_api_data(
                         config.tender_company_info, target_param={'id': item['company_id']})
                 else:
                     continue
+                #print(tender)
                 self.logger.info('[tender-{}] PARSING STARTED'.format(tender['result']['data']['id']))
                 tender_data = Parser.clear_tender_data(
                     tender['result']['data'],
                     tender_positions['result']['data'],
-                    tender_company_info['result']['data']
+                    tender_company_info['result']['data'] if tender_company_info.get('result') else None,
+                    item
                 )
-                #print(tender_data)
+
                 #res = self.repository.get_one(tender_data['id'])
                 #if res and res['status'] == tender_data['status'] and \
                 #        res['sub_close_date'] == tender_data['sub_close_date']:
@@ -78,21 +79,24 @@ class Collector:
                                 sub_close_date=tender_data['sub_close_date'], http_worker=HttpWorker)
                 mapper.load_tender_info(tender_data['number'], tender_data['status'], tender_data['name'],
                                         tender_data['pub_date'], tender_data['sub_close_date'], tender_data['url'],
-                                        tender_data['type'], tender_data['positions'])
-                mapper.load_customer_info(tender_data['customer'])
+                                        tender_data['type'], tender_data['positions'], tender_data['anno'],
+                                        tender_data['currency'])
+                if not tender_company_info.get('error'):
+                    mapper.load_customer_info(tender_data['customer'], tender_company_info['result']['data'].get('inn'),
+                                              tender_company_info['result']['data'].get('kpp'))
+                else:
+                    mapper.load_customer_info(tender_data['customer'])
                 yield mapper
                 self.logger.info('[tender-{}] PARSING OK, URL-{}'.format(tender_data['id'], tender_data['url']))
-                if data_length != 0:
-                    next_page_params['offset'] += 200
-                else:
-                    next_page_params = None
+            if data_length != 0:
+                next_page_params['offset'] += 200
+            else:
+                next_page_params = None
 
     def collect(self):
         while True:
             for mapper in self.tender_list_gen():
-                print(mapper.tender_short_model)
-                #self.repository.upsert(mapper.tender_short_model)
+                self.repository.upsert(mapper.tender_short_model)
                 for model in mapper.tender_model_gen():
-                    print(model)
-                    #self.rabbitmq.publish(model)
+                    self.rabbitmq.publish(model)
             sleep(config.sleep_time)

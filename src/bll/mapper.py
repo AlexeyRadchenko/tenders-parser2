@@ -32,6 +32,8 @@ class Mapper:
     tender_date_bidding = None
     tender_contacts = None
     tender_positions = None
+    tender_description = None
+    tender_currency = None
 
     def __init__(self, number, status, sub_close_date, http_worker):
         """
@@ -68,7 +70,7 @@ class Mapper:
                 guarantee_app=None,
                 guarantee_contract=None,
                 customer_guid=self.customer_guid,
-                customer_name=self.customer_name
+                customer_name=self.customer_name,
             ))
         # информация о закупках
         #if not lot and 'positions' in lot:
@@ -134,12 +136,32 @@ class Mapper:
                 displayName='Контактная информация',
                 modifications=[]
             ).add_field(Field(
-                name='Organization',
-                displayName='Организация',
-                value=self.customer_name,
+                    name='Organization',
+                    displayName='Организация',
+                    value=self.customer_name,
+                    type=FieldType.String,
+                    modifications=[]
+                )
+            )
+        )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='ContractDescription',
+                displayName='Описание',
+                value=self.tender_description,
                 type=FieldType.String,
                 modifications=[]
             )
+        )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='ContractCurrency',
+                displayName='Валюта контракта',
+                value=self.tender_currency,
+                type=FieldType.String,
+                modifications=[]
             )
         )
 
@@ -238,9 +260,10 @@ class Mapper:
             self._platform_href = 'http://www.tender.pro'
         return self._platform_href
 
-    def load_customer_info(self, customer_name):
+    def load_customer_info(self, customer_name, customer_inn, customer_kpp):
         org_info = self.http.get_organization(
-            customer_name, self.customer_inn, self.customer_kpp)
+            #customer_name, self.customer_inn, self.customer_kpp)
+            customer_name, customer_inn=None, customer_kpp=None)
         if org_info['name']:
             self.customer_name = org_info['name']
         else:
@@ -263,7 +286,7 @@ class Mapper:
         return self
 
     def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_type, t_positions):
+                         t_type, t_positions, t_annotation, t_cur):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -279,4 +302,6 @@ class Mapper:
         self.tender_attachments = None
         self.tender_date_bidding = None
         self.tender_contacts = None
+        self.tender_description = t_annotation
+        self.tender_currency = t_cur
         return self

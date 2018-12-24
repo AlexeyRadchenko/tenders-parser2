@@ -16,24 +16,27 @@ class Parser:
     REGEX_EMAIL = re.compile(r'[^\s]+@[^.]+.\w+')
     REGEX_PHONE = re.compile(r'((8|\+7)[\- ]?)?(\(?\d{3,5}\)?[\- ]?)?[\d\- ]{7,16}')
     REGEX_FILE_NAME = re.compile(r"[^/]+$")
+    REGEXT_REMOVE_TAG = re.compile(r'<.*?>')
 
     @classmethod
-    def clear_tender_data(cls, tender, positions, company):
+    def clear_tender_data(cls, tender, positions, company, item):
         return {
             'id': '{}_{}'.format(tender['id'], 1),
             'number': tender['id'],
             'name': tender['title'],
             'type': tender['type_name'],
             'status': cls._get_status(tender['status_id']),
-            'region': cls._get_company_region(company['address']), #int(company['kpp'][:2]),
-            'customer': company['title_full'],
-            #'currency': tender['currency_name'],
+            'region': cls._get_company_region(company['address']) if company else None,
+            'customer': item['company_name'],
+            'currency': item['currency_name'],
             'delivery_date': tender['ship_date'],
             'positions': [
                 {'name': pos['name'], 'quantity': pos['amount'], 'measure': pos['unit_name']} for pos in positions],
-            'pub_date': cls._parse_datetime_with_timezone(tender['open_date'], False),
-            'sub_close_date': cls._parse_datetime_with_timezone(tender['close_date'], False),
-            'url': 'http://www.tender.pro/view_tender_public.shtml?tenderid={}&tab=common'.format(tender['id'])
+            'pub_date': cls._parse_datetime_with_timezone(tender['open_date'], False) if tender['open_date'] else None,
+            'sub_close_date': cls._parse_datetime_with_timezone(tender['close_date'], False) \
+                if tender['close_date'] else None,
+            'url': 'http://www.tender.pro/view_tender_public.shtml?tenderid={}&tab=common'.format(tender['id']),
+            'anno': re.sub(cls.REGEXT_REMOVE_TAG, '', tender['anno']),
         }
 
     @classmethod
