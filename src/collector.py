@@ -1,5 +1,4 @@
 import logging
-import json
 
 from src.bll.http_worker import HttpWorker
 from src.bll.mapper import Mapper
@@ -60,7 +59,6 @@ class Collector:
                         config.tender_company_info, target_param={'id': item['company_id']})
                 else:
                     continue
-                #print(tender)
                 self.logger.info('[tender-{}] PARSING STARTED'.format(tender['result']['data']['id']))
                 tender_data = Parser.clear_tender_data(
                     tender['result']['data'],
@@ -69,23 +67,19 @@ class Collector:
                     item
                 )
 
-                #res = self.repository.get_one(tender_data['id'])
-                #if res and res['status'] == tender_data['status'] and \
-                #        res['sub_close_date'] == tender_data['sub_close_date']:
-                #    self.logger.info('[tender-{}] ALREADY EXIST'.format(tender_data['id']))
-                #    continue
-
+                res = self.repository.get_one(tender_data['id'])
+                if res and res['status'] == tender_data['status'] and \
+                        res['sub_close_date'] == tender_data['sub_close_date']:
+                    self.logger.info('[tender-{}] ALREADY EXIST'.format(tender_data['id']))
+                    continue
                 mapper = Mapper(number=tender_data['number'], status=tender_data['status'],
                                 sub_close_date=tender_data['sub_close_date'], http_worker=HttpWorker)
                 mapper.load_tender_info(tender_data['number'], tender_data['status'], tender_data['name'],
                                         tender_data['pub_date'], tender_data['sub_close_date'], tender_data['url'],
                                         tender_data['type'], tender_data['positions'], tender_data['anno'],
                                         tender_data['currency'])
-                if not tender_company_info.get('error'):
-                    mapper.load_customer_info(tender_data['customer'], tender_company_info['result']['data'].get('inn'),
-                                              tender_company_info['result']['data'].get('kpp'))
-                else:
-                    mapper.load_customer_info(tender_data['customer'])
+
+                mapper.load_customer_info(tender_data['customer'], tender_data['region'])
                 yield mapper
                 self.logger.info('[tender-{}] PARSING OK, URL-{}'.format(tender_data['id'], tender_data['url']))
             if data_length != 0:

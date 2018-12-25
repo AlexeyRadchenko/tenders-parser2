@@ -260,16 +260,17 @@ class Mapper:
             self._platform_href = 'http://www.tender.pro'
         return self._platform_href
 
-    def load_customer_info(self, customer_name, customer_inn, customer_kpp):
+    def load_customer_info(self, customer_name, region):
         org_info = self.http.get_organization(
-            #customer_name, self.customer_inn, self.customer_kpp)
-            customer_name, customer_inn=None, customer_kpp=None)
+            customer_name, self.customer_inn, self.customer_kpp)
         if org_info['name']:
             self.customer_name = org_info['name']
         else:
             self.customer_name = customer_name
         if org_info['region']:
             self.customer_region = org_info['region']
+        elif region:
+            self.customer_region = region
         else:
             try:
                 self.customer_region = int(
@@ -281,8 +282,8 @@ class Mapper:
                 self.customer_inn = None
                 self.customer_kpp = None
                 return self
-        self.customer_inn = str(config.customer_info_map[customer_name]['inn'])
-        self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
+        #self.customer_inn = str(config.customer_info_map[customer_name]['inn'])
+        #self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
     def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,

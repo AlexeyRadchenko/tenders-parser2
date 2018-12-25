@@ -53,7 +53,7 @@ class Parser:
     @classmethod
     def _get_company_region(cls, address):
         for region in config.regions_map.keys():
-            if region in address:
+            if region != '' and region in address:
                 return config.regions_map[region]
         return 0
 
