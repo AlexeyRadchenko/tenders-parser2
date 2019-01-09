@@ -65,7 +65,7 @@ class Mapper:
                 guarantee_app=None,
                 guarantee_contract=None,
                 customer_guid=self.customer_guid,
-                customer_name=self.customer_name
+                customer_name=self.customer_name if self.customer_name else 'Нет организации'
             ))
         # информация о закупках
         if lot and 'positions' in lot:
@@ -133,11 +133,6 @@ class Mapper:
                 displayName='Дата окончания приема заявок',
                 value=self.tender_date_open_until,
                 type=FieldType.Date
-            )).add_field(Field(
-                name='biddingDateTime',
-                displayName='Дата проведения торгов',
-                value=self.tender_date_bidding,
-                type=FieldType.Date
             ))
         )
 
@@ -150,50 +145,10 @@ class Mapper:
             ).add_field(Field(
                 name='Organization',
                 displayName='Организация',
-                value=self.customer_name,
+                value=self.customer_name if self.customer_name else '',
                 type=FieldType.String,
                 modifications=[]
             )
-            ).add_array(
-                lambda c: c.set_properties(
-                    name='Contacts',
-                    displayName='Контакты',
-                    modifications=[Modification.HiddenLabel]
-                ).add_array_items(
-                    self.tender_contacts, # list
-                    lambda item, index: c.add_field(Field(
-                        name='FIO' + str(index),
-                        displayName='ФИО',
-                        value=item[0],
-                        type=FieldType.String,
-                        modifications=[Modification.HiddenLabel]
-                    )
-                    ).add_field(Field(
-                        name='Phone' + str(index),
-                        displayName='Телефон',
-                        value=item[1],
-                        type=FieldType.String,
-                        modifications=[]
-                    )
-                    ).add_field(Field(
-                        name='Email' + str(index),
-                        displayName='Электронная почта',
-                        value=item[2],
-                        type=FieldType.String,
-                        modifications=[Modification.Email]
-                    )
-                    )
-                )
-            )
-        )
-
-        shared_model.add_general(
-            lambda f: f.set_properties(
-                name='ContractDescription',
-                displayName='Описание',
-                value=self.tender_description,
-                type=FieldType.String,
-                modifications=[]
             )
         )
 
@@ -227,7 +182,7 @@ class Mapper:
             # TODO добавить self.customer_guid - сейчас заглушка
             # Строка для поиска организаций, customers+participants (Название организации ИНН КПП GUID)
             'organisationsSearch': ' '.join(
-                (self.customer_name, str(self.customer_inn) if self.customer_inn else '',
+                (self.customer_name if self.customer_name else '', str(self.customer_inn) if self.customer_inn else '',
                  str(self.customer_kpp) if self.customer_kpp else '')),
             # Способ определеняи поставщика
             'placingWay': self.tender_placing_way,
@@ -289,7 +244,7 @@ class Mapper:
     @property
     def platform_href(self):
         if not self._platform_href:
-            self._platform_href = 'http://www.kolagmk.ru'
+            self._platform_href = 'http://www.lukoil.ru'
         return self._platform_href
 
     def load_customer_info(self, customer_name):
@@ -316,8 +271,7 @@ class Mapper:
         self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
-    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url,
-                         t_attachments, t_date_bidding, t_contacts):
+    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, t_attachments):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -330,6 +284,6 @@ class Mapper:
         self.tender_placing_way = config.placing_way['открытый конкурс']
         self.tender_placing_way_human = 'Открытый конкурс'
         self.tender_attachments = t_attachments
-        self.tender_date_bidding = t_date_bidding
-        self.tender_contacts = t_contacts
+        self.tender_date_bidding = None
+        self.tender_contacts = None
         return self

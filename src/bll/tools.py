@@ -47,7 +47,7 @@ def retry(logger, attempts=3, delay=100, exceptions=None):
     return decor
 
 
-def convert_datetime_str_to_timestamp(datetime_str, tz):
+def convert_datetime_str_to_timestamp(datetime_str, tz, date_dilimiter='.'):
     """Преобразует строку с датой в `unix timestamp` формат
 
     Args:
@@ -55,7 +55,14 @@ def convert_datetime_str_to_timestamp(datetime_str, tz):
 
     Returns:
         int: unix timestamp
+
+    If date_dilimiter == '-'
+       date type YYYY-MM-DD
     """
+    if date_dilimiter == '-':
+        year, month, day = datetime_str.split('-')
+        datetime_str = '{0}.{1}.{2}'.format(day, month, year)
+
     if ':' in datetime_str and tz:
         datetime_str = datetime_str + tz
         date_format = "%d.%m.%Y %H:%M:%S%z" if datetime_str.count(':') == 2 else "%d.%m.%Y %H:%M%z"

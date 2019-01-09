@@ -140,6 +140,7 @@ class Root(object):
     def to_dict(self):
         errors = self.validate()
         if errors:
+            print('ERRRR', errors)
             raise Exception(message=validation.inline(errors))
 
         result = convert.list_to_dict(self.containers)
