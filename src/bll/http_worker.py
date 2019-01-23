@@ -31,6 +31,18 @@ class HttpWorker:
 
     @classmethod
     @retry(logger)
+    def get_api_token(cls, target_param=None):
+        res = requests.get(config.api_toke_url, params=target_param, proxies=config.proxy)
+        return res.json()
+
+    @classmethod
+    @retry(logger)
     def get_tenders_list(cls, target_param=None):
-        res = requests.post(config.tenders_list_url, data=target_param, proxies=config.proxy)
+        res = requests.get(config.tenders_list_url, params=target_param, proxies=config.proxy)
+        return res.json()
+
+    @classmethod
+    @retry(logger)
+    def get_tenders_list(cls, target_param=None):
+        res = requests.get(config.tender_url, params=target_param, proxies=config.proxy)
         return res.json()

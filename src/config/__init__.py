@@ -13,7 +13,7 @@ class Config:
     proxy = None
 
     def __init__(self):
-        self.app_id = 'lukoil'
+        self.app_id = 'b2b-center'
         self.root_dir = '%s/../..' % os.path.dirname(os.path.abspath(__file__))
         self.configure_logging()
         self.logger = logging.getLogger('{}.{}'.format(self.app_id, 'config'))
@@ -30,9 +30,13 @@ class Config:
         if 'proxy' in file_config and file_config['proxy']['enabled']:
             self.set_up_proxy(file_config['proxy'])
         # ссылки
-        self.base_url = 'http://www.lukoil.ru'
+        self.base_url = 'https://www.b2b-center.ru'
+        self.api_toke_url = '%s/%s' % (
+            self.base_url, '/integration/json/User.Login')
         self.tenders_list_url = '%s/%s' % (
-            self.base_url, '/api/tenders/GetTenders')
+            self.base_url, '/integration/json/TradeProcedures.GetList')
+        self.tender_url = '%s/%s' % (
+            self.base_url, '/integration/json/TradeProcedures.GetShortTrade')
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
         self.sleep_time = 30
