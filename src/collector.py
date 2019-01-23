@@ -10,12 +10,13 @@ from time import sleep
 
 
 class Collector:
-    __slots__ = ['logger', '_repository', '_rabbitmq']
+    __slots__ = ['logger', '_repository', '_rabbitmq', 'api_token']
 
     def __init__(self):
         self.logger = logging.getLogger('{}.{}'.format(config.app_id, 'collector'))
         self._repository = None
         self._rabbitmq = None
+        self.api_token = None
 
     @property
     def repository(self):
@@ -32,7 +33,12 @@ class Collector:
                                               config.rabbitmq['queue'])
         return self._rabbitmq
 
-    def tender_list_gen(self, arc):
+    def _api_token_validate(self, result):
+        if result.get('error'):
+            print()
+
+    def tender_list_gen(self):
+
 
         next_page_params = {
             'Organization': 1071,
@@ -64,14 +70,11 @@ class Collector:
                 self.logger.info('[tender-{}] PARSING OK'.format(tender['number']))
             next_page_params['Skip'] += 100
 
-    def db_upload(self, arc=False):
-        for mapper in self.tender_list_gen(arc):
-            self.repository.upsert(mapper.tender_short_model)
-            for model in mapper.tender_model_gen():
-                self.rabbitmq.publish(model)
-
     def collect(self):
         while True:
-            self.db_upload(arc=True)
-            self.db_upload()
+
+            for mapper in self.tender_list_gen():
+                self.repository.upsert(mapper.tender_short_model)
+                for model in mapper.tender_model_gen():
+                    self.rabbitmq.publish(model)
             sleep(config.sleep_time)
