@@ -9,7 +9,7 @@ from src.config import config
 
 
 class Mapper:
-    platform_name = 'АО «Кольская ГМК»'
+    platform_name = 'B2B-Center'
     _platform_href = None
     _tender_short_model = None
     _customer_guid = None
@@ -244,7 +244,7 @@ class Mapper:
     @property
     def platform_href(self):
         if not self._platform_href:
-            self._platform_href = 'http://www.lukoil.ru'
+            self._platform_href = 'https://www.b2b-center.ru'
         return self._platform_href
 
     def load_customer_info(self, customer_name):
@@ -271,7 +271,7 @@ class Mapper:
         self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
-    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, t_attachments):
+    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, t_placing, t_lots):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -280,10 +280,10 @@ class Mapper:
         self.tender_date_open = t_date_pub
         self.tender_date_open_until = t_date_close
         self.tender_url = t_url
-        self.tender_lots = None
-        self.tender_placing_way = config.placing_way['открытый конкурс']
-        self.tender_placing_way_human = 'Открытый конкурс'
-        self.tender_attachments = t_attachments
+        self.tender_lots = t_lots
+        self.tender_placing_way = config.placing_way[t_placing]
+        self.tender_placing_way_human = t_placing
+        self.tender_attachments = None
         self.tender_date_bidding = None
         self.tender_contacts = None
         return self

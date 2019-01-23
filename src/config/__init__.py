@@ -31,12 +31,12 @@ class Config:
             self.set_up_proxy(file_config['proxy'])
         # ссылки
         self.base_url = 'https://www.b2b-center.ru'
-        self.api_toke_url = '%s/%s' % (
-            self.base_url, '/integration/json/User.Login')
+        self.api_token_url = '%s/%s' % (
+            self.base_url, 'integration/json/User.Login')
         self.tenders_list_url = '%s/%s' % (
-            self.base_url, '/integration/json/TradeProcedures.GetList')
+            self.base_url, 'integration/json/TradeProcedures.GetList')
         self.tender_url = '%s/%s' % (
-            self.base_url, '/integration/json/TradeProcedures.GetShortTrade')
+            self.base_url, 'integration/json/TradeProcedures.GetShortTrade')
         self.organizations_host = file_config["organizations"]["host"]
         self.organizations_token = file_config["organizations"]["token"]
         self.sleep_time = 30

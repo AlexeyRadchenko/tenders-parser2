@@ -1,7 +1,6 @@
 import logging
 import re
 
-from lxml import html
 
 from src.bll import tools
 from src.config import config
@@ -18,42 +17,15 @@ class Parser:
     REGEX_FILE_NAME = re.compile(r"[^/]+$")
 
     @classmethod
-    def _get_tender_id(cls, tender_num):
-        return 'НА{}_1'.format(int(sha256(tender_num.encode('utf-8')).hexdigest(), 16) % 10 ** 8)
-
-    @classmethod
-    def parse_tenders(cls, tenders_list_json):
-        tender_list = []
-        for item in tenders_list_json['Items']:
-            sub_close_date = cls._parse_datetime_with_timezone(item['DateFinish'].split('T')[0], tz=None)
-            pub_date = cls._parse_datetime_with_timezone(item['PublishingDate'].split('T')[0], tz=None)
-            customer = item['Customers'][0]['Organization'] if item['Customers'] else None
-            tender_list.append({
-                'number': item['Number'],
-                'name': item['Topic'],
-                'sub_close_date': sub_close_date,
-                'pub_date': pub_date,
-                'org': item['OrganizerName'],
-                'status': cls._get_status(item['IsCanceled'], item['IsFinished'], item['IsDisabled'], sub_close_date),
-                'customer': customer['Name'] if customer else None,
-                'region': config.lukoil_regions_id.get(str(customer['RegionId'])) if customer else None,
-                'attachments': cls._get_attachments(item['Files'], pub_date),
-                'url': 'www.lukoil.ru/Company/Tendersandauctions/Tenders?tab=1',
-            })
-        return tender_list
-
-    @classmethod
-    def _get_status(cls, cancel, finish, disable, end_date):
-        if cancel:
-            return 4
-        if finish:
-            return 3
-        if disable:
-            return 5
-        if tools.get_utc() < end_date:
+    def get_status(cls, date_end, status):
+        actual = tools.get_utc() < date_end
+        if actual:
             return 1
-        else:
-            return 2
+        if not actual and status == 'archived':
+            return 3
+        if status == 'canceled':
+            return 4
+        return 0
 
     @classmethod
     def _get_phone(cls, phone_str):

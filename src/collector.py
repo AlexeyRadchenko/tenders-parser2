@@ -1,4 +1,5 @@
 import logging
+import datetime
 
 from src.bll.http_worker import HttpWorker
 from src.bll.mapper import Mapper
@@ -33,48 +34,72 @@ class Collector:
                                               config.rabbitmq['queue'])
         return self._rabbitmq
 
-    def _api_token_validate(self, result):
+    @classmethod
+    def _response_validate(cls, result, method):
         if result.get('error'):
-            print()
+            print('method: {} - {}'.format(method, result['error']['message']))
+            return None
+        else:
+            return result
+
+    @classmethod
+    def _get_date_params(cls):
+        now = datetime.datetime.now().timestamp()
+        past = (datetime.datetime.now() - datetime.timedelta(days=7)).timestamp()
+        return int(now), int(past)
 
     def tender_list_gen(self):
-
-
-        next_page_params = {
-            'Organization': 1071,
-            'customer': None,
-            'Country': None,
-            'Region': None,
-            'SearchQuery': None,
-            'Take': 100,
-            'Tab': 1 if not arc else 4,
-            'Skip': 0
+        now, past = self._get_date_params()
+        tender_list_params = {
+            'access_token': self.api_token,
+            'date_from': past,
+            'date_to': now,
         }
 
-        while next_page_params is not None:
-            tender_list_json_res = HttpWorker.get_tenders_list(next_page_params)
-            if len(tender_list_json_res['Items']) == 0:
-                break
-            tender_list = Parser.parse_tenders(tender_list_json_res)
-            for tender in tender_list:
-                self.logger.info('[tender-{}] PARSING STARTED'.format(tender['number']))
-                res = self.repository.get_one('{}_1'.format(tender['number']))
-                if res and res['status'] == tender['status']:
-                    self.logger.info('[tender-{}] ALREADY EXIST'.format(tender['number']))
-                    continue
-                mapper = Mapper(number=tender['number'], status=tender['status'], http_worker=HttpWorker)
-                mapper.load_tender_info(tender['number'], tender['status'], tender['name'], tender['pub_date'],
-                                        tender['sub_close_date'], tender['url'], tender['attachments'])
-                mapper.load_customer_info(tender['customer'])
-                yield mapper
-                self.logger.info('[tender-{}] PARSING OK'.format(tender['number']))
-            next_page_params['Skip'] += 100
+        tender_list_json_res = self._response_validate(HttpWorker.get_tenders_list(tender_list_params), 'tender_list')
+        if not tender_list_json_res:
+            yield tender_list_json_res
+            raise StopIteration
+
+        for tender_item in tender_list_json_res['trade_list']:
+            t_params = {
+                'access_token': self.api_token,
+                'id': tender_item['id']
+            }
+
+            tender = self._response_validate(HttpWorker.get_tender(t_params), 'get_tender')
+
+            if not tender:
+                yield tender
+                raise StopIteration
+            print(tender)
+            self.logger.info('[tender-{}, URL: {}] PARSING STARTED'.format(tender['number'], tender['url']))
+            status = Parser.get_status(tender['date_end'], tender['status'])
+            res = self.repository.get_one('{}_1'.format(tender['number']))
+            if res and res['status'] == status:
+                self.logger.info('[tender-{}] ALREADY EXIST'.format(tender['number']))
+                continue
+            mapper = Mapper(number=tender['number'], status=status, http_worker=HttpWorker)
+            mapper.load_tender_info(tender['number'], tender['status'], tender['description'], tender['publish_date'],
+                                    tender['date_end'], tender['url'], tender['trade_type'])
+            mapper.load_customer_info(tender['customer']['name'])
+            yield mapper
+            self.logger.info('[tender-{}] PARSING OK'.format(tender['number']))
 
     def collect(self):
-        while True:
+        if not self.api_token:
+            from auth import AUTH
+            result = self._response_validate(HttpWorker.get_api_token(AUTH), 'get_token')
+            self.api_token = result.get('access_token')
 
+        data = True
+        print(self.api_token)
+        while data:
             for mapper in self.tender_list_gen():
-                self.repository.upsert(mapper.tender_short_model)
-                for model in mapper.tender_model_gen():
-                    self.rabbitmq.publish(model)
+                if self.api_token and mapper:
+                    self.repository.upsert(mapper.tender_short_model)
+                    for model in mapper.tender_model_gen():
+                        self.rabbitmq.publish(model)
+                elif not mapper:
+                    data = False
             sleep(config.sleep_time)
