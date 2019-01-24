@@ -38,7 +38,6 @@ class HttpWorker:
     @classmethod
     @retry(logger)
     def get_tenders_list(cls, target_param=None):
-        print(config.tenders_list_url)
         res = requests.get(config.tenders_list_url, params=target_param, proxies=config.proxy)
         return res.json()
 

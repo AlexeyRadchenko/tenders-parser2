@@ -31,8 +31,10 @@ class Mapper:
     tender_attachments = None
     tender_date_bidding = None
     tender_contacts = None
+    tender_pos = None
+    tender_description = None
 
-    def __init__(self, number, status, http_worker):
+    def __init__(self, number, status, http_worker, change_date):
         """
 
         Args:
@@ -45,17 +47,19 @@ class Mapper:
         self.tender_id = number
         self.tender_status = status
         self.http = http_worker
+        self.change_date = change_date
 
     @property
     def tender_short_model(self):
         if not self._tender_short_model:
-            self._tender_short_model = {'_id': '{}_{}'.format(self.tender_id, 1), 'status': self.tender_status}
+            self._tender_short_model = {'_id': '{}_{}'.format(self.tender_id, 1), 'status': self.tender_status,
+                                        'change_date': self.change_date}
         return self._tender_short_model
 
     def tender_model_gen(self):
         yield from self._map_gen(one=False if self.tender_lots else True)
 
-    def get_shared_model(self, lot=None):
+    def get_shared_model(self, lot=None, pos=None):
         shared_model = Root()
         # в данной блоке должны присутствовать maxPrice, guaranteeApp, guaranteeContract
         # блок заказчика
@@ -68,7 +72,7 @@ class Mapper:
                 customer_name=self.customer_name if self.customer_name else 'Нет организации'
             ))
         # информация о закупках
-        if lot and 'positions' in lot:
+        if lot and pos:
             shared_model.add_category(
                 lambda c: c.set_properties(
                     name='ObjectInfo',
@@ -84,10 +88,10 @@ class Mapper:
                             Head(name='Quantity', displayName='Количество'),
                             Head(name='PricePerOne',
                                  displayName='Цена за единицу'),
-                            Head(name='Price', displayName='Стоимость')
+                            Head(name='Price', displayName='Общая стоимость')
                         ])
                     ).add_rows(
-                        lot['positions'],
+                        pos,
                         lambda elem, row: row.add_cells([
                             Cell(
                                 name='Name',
@@ -107,12 +111,12 @@ class Mapper:
                             Cell(
                                 name='PricePerOne',
                                 type=FieldType.Price,
-                                value=None
+                                value=elem['price_unit']
                             ),
                             Cell(
                                 name='Price',
                                 type=FieldType.Price,
-                                value=None
+                                value=elem['price_all']
                             )
                         ])
                     )
@@ -125,13 +129,18 @@ class Mapper:
                 displayName='Порядок размещения заказа'
             ).add_field(Field(
                 name='SubmissionStartDateTime',
-                displayName='Дата начал приема заявок',
+                displayName='Дата начала приема заявок',
                 value=self.tender_date_open,
                 type=FieldType.Date
             )).add_field(Field(
                 name='SubmissionCloseDateTime',
                 displayName='Дата окончания приема заявок',
                 value=self.tender_date_open_until,
+                type=FieldType.Date
+            )).add_field(Field(
+                name='biddingDateTime',
+                displayName='Дата проведения торгов',
+                value=self.tender_date_bidding,
                 type=FieldType.Date
             ))
         )
@@ -149,6 +158,16 @@ class Mapper:
                 type=FieldType.String,
                 modifications=[]
             )
+            )
+        )
+
+        shared_model.add_general(
+            lambda f: f.set_properties(
+                name='ContractDescription',
+                displayName='Описание',
+                value=self.tender_description,
+                type=FieldType.String,
+                modifications=[]
             )
         )
 
@@ -211,16 +230,17 @@ class Mapper:
         if not one:
             for lot_num, lot in enumerate(self.tender_lots):
                 lot_model = copy(model)
+                positions_str = ' '.join([p['name'] for p in self.tender_pos]) if self.tender_pos else ''
                 lot_model.update({
                     'id': '{}_{}'.format(self.tender_id, lot_num + 1),
                     'orderName': self.tender_name,
                     'globalSearch': ' '.join((self.tender_name, str(self.tender_id), lot['name'],
-                                              *[p['name'] for p in lot['positions']], self.tender_placing_way_human)),
-                    'json': self.get_shared_model(lot),
+                                              positions_str, self.tender_placing_way_human)),
+                    'json': self.get_shared_model(lot, self.tender_pos),
                     'maxPrice': lot['price'],
                     'multilot': len(self.tender_lots) > 1,
                     'tenderSearch': ' '.join(
-                        (self.tender_name, str(self.tender_id), lot['name'], *[p['name'] for p in lot['positions']])),
+                        (self.tender_name, str(self.tender_id), lot['name'], positions_str)),
                 })
                 yield lot_model
         else:
@@ -271,7 +291,8 @@ class Mapper:
         self.customer_kpp = str(config.customer_info_map[customer_name]['kpp'])
         return self
 
-    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, t_placing, t_lots):
+    def load_tender_info(self, t_number, t_status, t_name, t_date_pub, t_date_close, t_url, t_placing, t_lots, t_pos,
+                         t_bidding, t_desc):
         self.tender_id = t_number
         self.tender_price = None
         self.tender_status = t_status
@@ -281,9 +302,11 @@ class Mapper:
         self.tender_date_open_until = t_date_close
         self.tender_url = t_url
         self.tender_lots = t_lots
+        self.tender_pos = t_pos
         self.tender_placing_way = config.placing_way[t_placing]
         self.tender_placing_way_human = t_placing
         self.tender_attachments = None
-        self.tender_date_bidding = None
+        self.tender_date_bidding = t_bidding
         self.tender_contacts = None
+        self.tender_description = t_desc
         return self

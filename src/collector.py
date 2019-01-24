@@ -72,16 +72,27 @@ class Collector:
             if not tender:
                 yield tender
                 raise StopIteration
-            print(tender)
+            tender = tender['short_trade_procedure']
+            #print(tender['type'], tender['trade_type'])
+            """if tender.get('positions'):
+                #print(tender)
+                
+            else:
+                continue"""
+
             self.logger.info('[tender-{}, URL: {}] PARSING STARTED'.format(tender['number'], tender['url']))
-            status = Parser.get_status(tender['date_end'], tender['status'])
+            status = Parser.get_status(tender['date_end'] * 1000, tender['status'])
+            if status == 1:
+                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!', tender)
             res = self.repository.get_one('{}_1'.format(tender['number']))
-            if res and res['status'] == status:
+            if res and res['status'] == status and res['change_date'] == tender['change_date']:
                 self.logger.info('[tender-{}] ALREADY EXIST'.format(tender['number']))
                 continue
-            mapper = Mapper(number=tender['number'], status=status, http_worker=HttpWorker)
-            mapper.load_tender_info(tender['number'], tender['status'], tender['description'], tender['publish_date'],
-                                    tender['date_end'], tender['url'], tender['trade_type'])
+            mapper = Mapper(number=tender['number'], status=status, http_worker=HttpWorker,
+                            change_date=tender['change_date'])
+            mapper.load_tender_info(tender['number'], status, tender['description'], tender['publish_date'] * 1000,
+                                    tender['date_end'] * 1000, tender['url'], tender['trade_type'], tender['lots'],
+                                    tender.get('positions'), tender['date_begin'] * 1000, tender['comment'].replace('\\n', '\n'))
             mapper.load_customer_info(tender['customer']['name'])
             yield mapper
             self.logger.info('[tender-{}] PARSING OK'.format(tender['number']))
@@ -98,8 +109,10 @@ class Collector:
             for mapper in self.tender_list_gen():
                 if self.api_token and mapper:
                     self.repository.upsert(mapper.tender_short_model)
+                    #print(mapper.tender_short_model)
                     for model in mapper.tender_model_gen():
                         self.rabbitmq.publish(model)
+                        #print(model)
                 elif not mapper:
                     data = False
             sleep(config.sleep_time)
