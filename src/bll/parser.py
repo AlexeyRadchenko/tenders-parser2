@@ -28,10 +28,13 @@ class Parser:
             return True
 
     @classmethod
-    def parse_tenders(cls, tenders_list_html_raw):
+    def parse_tenders(cls, tenders_list_html_raw, page):
         html = BeautifulSoup(tenders_list_html_raw, 'lxml')
         pagination = html.find('div', {'id': 'pager'}).find_all('li')
-        next_page = True if len(pagination) == 13 else False
+        if page == 1:
+            next_page = True
+        else:
+            next_page = True if len(pagination) == 13 else False
         return next_page, cls._parse_tenders_gen(html)
 
     @classmethod
@@ -89,7 +92,7 @@ class Parser:
             'sub_close_date': cls._parse_datetime_with_timezone(item['sub_close_date'], tz=False),
             'customer': item['org'],
             'contacts': cls._get_contacts(contacts.findAll(text=True)),
-            'last_mod': last_mod_date,
+            'mod_date': last_mod_date,
             'dop_info': None if dop_info == '-' else dop_info,
             'url': item['url']
         }

@@ -8,13 +8,15 @@ from src.repository.mongodb import MongoRepository
 from src.repository.rabbitmq import RabbitMqProvider
 from time import sleep
 
+
 class Collector:
-    __slots__ = ['logger', '_repository', '_rabbitmq']
+    __slots__ = ['logger', '_repository', '_rabbitmq', 'first_init']
 
     def __init__(self):
         self.logger = logging.getLogger('{}.{}'.format(config.app_id, 'collector'))
         self._repository = None
         self._rabbitmq = None
+        self.first_init = True
 
     @property
     def repository(self):
@@ -37,38 +39,48 @@ class Collector:
             'disp_status': 1 if arc else 0
         }
         while next_page_params is not None:
+            #print('PAGE_PARAMS', next_page_params)
             tender_list_html_res = HttpWorker.get_tenders_list(next_page_params)
-            next_page_exist, tender_list_gen = Parser.parse_tenders(tender_list_html_res.content)
+            next_page_exist, tender_list_gen = Parser.parse_tenders(tender_list_html_res.content,
+                                                                    next_page_params['page'])
+            #print(next_page_exist)
             for item in tender_list_gen:
-                #self.logger.info('[tender-{}] PARSING STARTED'.format(t_url))
-                #res = self.repository.get_one(t_id)
-                #if res and res['status'] == 3:
-                #    self.logger.info('[tender-{}] ALREADY EXIST'.format(t_url))
-                #    continue
-                print(item)
-                #tender_html_raw = HttpWorker.get_tender(item['url'])
-                tender_html_raw = HttpWorker.get_tender('https://b2b.sibur.ru/pages_new_ru/exchange/exchange_details.jsp?page=16&disp_status=0&id=319634&type=1')
+                #print(item)
+                tender_html_raw = HttpWorker.get_tender(item['url'])
+                #tender_html_raw = HttpWorker.get_tender('https://b2b.sibur.ru/pages_new_ru/exchange/exchange_details.jsp?page=16&disp_status=0&id=319634&type=1')
                 tender = Parser.parse_tender(tender_html_raw.content, item)
-                print(tender)
-                mapper = Mapper(id_=tender['id'], status=tender['status'], http_worker=HttpWorker)
-                for l_num, l_name, l_url, l_quantity, l_price in l_gen:
-                    lot = {'num': l_num, 'name': l_name, 'url': l_url, 'quantity': l_quantity, 'price': l_price,
-                           'positions': []}
-                    lot_html_raw = HttpWorker.get_lot(l_url)
-                    for pos_gen in Parser.parse_lot_gen(lot_html_raw.text):
-                        for p_name, p_quantity in pos_gen:
-                            lot['positions'].append({'name': p_name, 'quantity': p_quantity})
-                    tender['lots'].append(lot)
-                mapper.load_tender_info(t_id, t_status, t_name, t_price, t_pway, t_pway_human, t_dt_publication,
-                                        t_dt_open, t_dt_close, t_url, tender['lots'])
-                mapper.load_customer_info(c_name)
+                self.logger.info('[tender-{}] PARSING STARTED'.format(tender['url']))
+                res = self.repository.get_one(tender['number'] + '_1')
+                if res and res['status'] == tender['status'] and res['mod_date'] == tender['mod_date']:
+                    self.logger.info('[tender-{}] ALREADY EXIST'.format(tender['number']))
+                    continue
+                #print(tender)
+                mapper = Mapper(number=tender['number'], status=tender['status'], mod_date=tender['mod_date'],
+                                http_worker=HttpWorker)
+                mapper.load_tender_info(tender['number'], tender['status'], tender['name'], tender['price'],
+                                        tender['type'], tender['pub_date'], tender['sub_close_date'], tender['url'],
+                                        tender['contacts'], tender['lots'], tender['dop_info'], tender['currency'])
+                mapper.load_customer_info(tender['customer'])
                 yield mapper
-                self.logger.info('[tender-{}] PARSING OK'.format(t_url))
+                self.logger.info('[tender-{}] PARSING OK'.format(tender['url']))
+            if next_page_exist and self.first_init:
+                next_page_params['page'] += 1
+            elif arc and not self.first_init and next_page_params['page'] > config.max_archive_pages:
+                next_page_params = None
+            else:
+                next_page_params = None
+
+    def db_upload(self, arc):
+        for mapper in self.tender_list_gen(arc=arc):
+            self.repository.upsert(mapper.tender_short_model)
+            #print(mapper.tender_short_model)
+            for model in mapper.tender_model_gen():
+                self.rabbitmq.publish(model)
+                #print(model)
 
     def collect(self):
         while True:
-            for mapper in self.tender_list_gen():
-                self.repository.upsert(mapper.tender_short_model)
-                for model in mapper.tender_model_gen():
-                    self.rabbitmq.publish(model)
+            self.db_upload(arc=True)
+            self.db_upload(arc=False)
+            self.first_init = False
             sleep(config.sleep_time)

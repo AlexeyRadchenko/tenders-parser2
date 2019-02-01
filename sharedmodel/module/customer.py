@@ -4,11 +4,12 @@ from .tools import validation, convert
 
 
 class Customer(object):
-    def __init__(self, max_price=None, guarantee_app=None, guarantee_contract=None, customer_guid=None, customer_name=None):
+    def __init__(self, max_price=None, guarantee_app=None, guarantee_contract=None, customer_guid=None, customer_name=None,
+                 currency=None):
         self.entities = []
         self.name = customer_guid if customer_guid else customer_name
         self.set_properties(max_price, guarantee_app,
-                            guarantee_contract, customer_guid, customer_name)
+                            guarantee_contract, customer_guid, customer_name, currency)
 
     def add_field(self, arg):
         if callable(arg):
@@ -57,7 +58,17 @@ class Customer(object):
         ))
         return self
 
-    def set_properties(self, max_price=None, guarantee_app=None, guarantee_contract=None, customer_guid=None, customer_name=None):
+    def add_currency(self, currency):
+        self.entities.append(Field(
+            value=currency,
+            name="currencyContract",
+            displayName="Валюта контракта",
+            type=FieldType.String
+        ))
+        return self
+
+    def set_properties(self, max_price=None, guarantee_app=None, guarantee_contract=None, customer_guid=None, customer_name=None,
+                       currency=None):
         if max_price:
             self.add_max_price(max_price)
         if guarantee_app:
@@ -66,6 +77,8 @@ class Customer(object):
             self.add_guarantee_contract(guarantee_contract)
         if customer_guid or customer_name:
             self.add_customer_info(customer_guid, customer_name)
+        if currency:
+            self.add_currency(currency)
         return self
 
     def compare(self, other, other_date, self_date):
